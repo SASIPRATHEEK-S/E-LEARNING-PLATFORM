@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import ManualQuizCreator from "../../components/forms/ManualQuizCreator";
-
+import InstructorProfile from "../InstructorProfile";
 export default function InstructorDashboard() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -253,19 +253,11 @@ export default function InstructorDashboard() {
             </div>
           )}
 
-          {activeTab === "profile" && (
-            <div>
-              <h2 className="mb-4">Profile</h2>
-              <div className="card shadow">
-                <div className="card-body">
-                  <p><strong>Name:</strong> {user.name}</p>
-                  <p><strong>Email:</strong> {user.email}</p>
-                  <p><strong>Role:</strong> {user.role}</p>
-                  <a href="/instructor-profile" className="btn btn-primary">Go to Full Profile</a>
-                </div>
-              </div>
-            </div>
-          )}
+{activeTab === "profile" && (
+  <div>
+    <InstructorProfile />
+  </div>
+)}
         </div>
       </div>
     </div>
