@@ -1,7 +1,7 @@
 import React from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, quizAttempts, quizzes }) => {
+const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, quizAttempts, quizzes, courseRatings = {} }) => {
   // Calculate overall performance metrics
   const totalEnrolled = enrolledCourses.length;
   const completedCourses = enrolledCourses.filter(course => (courseProgress[course.id]?.progress || 0) >= 100);
@@ -10,6 +10,15 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
     return progress > 0 && progress < 100;
   });
   const notStartedCourses = enrolledCourses.filter(course => (courseProgress[course.id]?.progress || 0) === 0);
+
+  const ratingEntries = Object.values(courseRatings || []);
+  const averageCourseRating = ratingEntries.length > 0
+    ? (ratingEntries.reduce((sum, r) => sum + (r.courseRating || 0), 0) / ratingEntries.length).toFixed(1)
+    : 0;
+  const averageInstructorRating = ratingEntries.length > 0
+    ? (ratingEntries.reduce((sum, r) => sum + (r.instructorRating || 0), 0) / ratingEntries.length).toFixed(1)
+    : 0;
+  const ratedCoursesCount = ratingEntries.length;
 
   // Calculate average quiz score
   const userQuizAttempts = quizAttempts.filter(attempt => attempt.studentId === user.id);
@@ -60,7 +69,7 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
       courseName: course?.title || 'Unknown Course',
       score: attempt.score,
       date: new Date(attempt.completedAt).toLocaleDateString(),
-      timeTaken: Math.floor(Math.random() * 45) + 15, // Mock time data
+      timeTaken: attempt.timeSpent || 0, // Use actual time spent from quiz attempt
       onTime: new Date(attempt.completedAt) <= new Date(quiz?.deadline || Date.now())
     };
   });
@@ -84,7 +93,7 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
     progress: item.progress
   }));
 
-  // Activity timeline (mock data based on real attempts and progress)
+  // Activity timeline (using real completion dates from course progress)
   const activityTimeline = [
     ...userQuizAttempts.slice(-3).map(attempt => {
       const quiz = quizzes.find(q => q.id === attempt.quizId);
@@ -98,7 +107,7 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
     ...completedCourses.slice(-2).map(course => ({
       type: 'course',
       title: `Completed course: ${course.title}`,
-      date: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000), // Random date within last week
+      date: courseProgress[course.id]?.completedAt ? new Date(courseProgress[course.id].completedAt) : new Date(),
       score: null
     }))
   ].sort((a, b) => b.date - a.date).slice(0, 5);
@@ -129,6 +138,37 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
           <i className={`bi ${performanceStatus.icon} me-1`}></i>
           {performanceStatus.status}
         </span>
+      </div>
+
+      {/* Rating Summary */}
+      <div className="row mb-4">
+        <div className="col-md-4 mb-3">
+          <div className="card shadow border-0 h-100">
+            <div className="card-body text-center">
+              <i className="bi bi-star-fill display-4 text-warning mb-2"></i>
+              <h5 className="card-title">Avg Course Rating</h5>
+              <h3 className="text-warning">{averageCourseRating}</h3>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-4 mb-3">
+          <div className="card shadow border-0 h-100">
+            <div className="card-body text-center">
+              <i className="bi bi-person-badge-fill display-4 text-info mb-2"></i>
+              <h5 className="card-title">Avg Instructor Rating</h5>
+              <h3 className="text-info">{averageInstructorRating}</h3>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-4 mb-3">
+          <div className="card shadow border-0 h-100">
+            <div className="card-body text-center">
+              <i className="bi bi-collection-fill display-4 text-success mb-2"></i>
+              <h5 className="card-title">Rated Courses</h5>
+              <h3 className="text-success">{ratedCoursesCount}</h3>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Overall Performance Summary */}

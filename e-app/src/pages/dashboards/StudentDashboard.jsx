@@ -16,8 +16,13 @@ export default function StudentDashboard() {
   const [courseProgress, setCourseProgress] = useState(() => JSON.parse(localStorage.getItem("APP_COURSE_PROGRESS") || "{}"));
   const [quizzes, setQuizzes] = useState(() => JSON.parse(localStorage.getItem("APP_QUIZZES") || "[]"));
   const [complaints, setComplaints] = useState(() => JSON.parse(localStorage.getItem("APP_COMPLAINTS") || "[]"));
+  const [courseRatings, setCourseRatings] = useState(() => JSON.parse(localStorage.getItem("APP_COURSE_RATINGS") || "{}"));
   const [takingQuiz, setTakingQuiz] = useState(null);
   const [quizAttempts, setQuizAttempts] = useState(() => JSON.parse(localStorage.getItem("APP_QUIZ_ATTEMPTS") || "[]"));
+  const [ratingCourseId, setRatingCourseId] = useState("");
+  const [courseRatingValue, setCourseRatingValue] = useState(5);
+  const [instructorRatingValue, setInstructorRatingValue] = useState(5);
+  const [ratingComment, setRatingComment] = useState("");
 
   useEffect(() => {
     localStorage.setItem("APP_COURSES", JSON.stringify(courses));
@@ -30,6 +35,10 @@ export default function StudentDashboard() {
   useEffect(() => {
     localStorage.setItem("APP_COURSE_PROGRESS", JSON.stringify(courseProgress));
   }, [courseProgress]);
+
+  useEffect(() => {
+    localStorage.setItem("APP_COURSE_RATINGS", JSON.stringify(courseRatings));
+  }, [courseRatings]);
 
   useEffect(() => {
     localStorage.setItem("APP_QUIZZES", JSON.stringify(quizzes));
@@ -46,6 +55,7 @@ export default function StudentDashboard() {
   const enrolledCourses = (enrollments || []).filter(e => e.userId === user.id).map(e => (courses || []).find(c => c.id === e.courseId)).filter(Boolean);
   const enrolledCourseIds = enrolledCourses.map(c => c.id);
   const completedCourses = enrolledCourses.filter(course => (courseProgress[course.id]?.progress || 0) >= 100);
+  const pendingRatingCourses = completedCourses.filter(course => !courseRatings[course.id]);
 
   const availableQuizzes = quizzes.filter(q => {
     if (!q.published || !enrolledCourseIds.includes(q.courseId)) return false;
@@ -68,6 +78,23 @@ export default function StudentDashboard() {
     };
   });
 
+  const recentActivity = [
+    ...completedCourses.map(course => ({
+      type: 'course',
+      title: `Completed course: ${course.title}`,
+      date: courseProgress[course.id]?.completedAt ? new Date(courseProgress[course.id].completedAt) : null,
+    })),
+    ...completedQuizzes.map(attempt => ({
+      type: 'quiz',
+      title: `Completed quiz: ${attempt.quizTitle}`,
+      date: attempt.completedAt ? new Date(attempt.completedAt) : null,
+      score: attempt.score,
+    })),
+  ]
+    .filter(item => item.date)
+    .sort((a, b) => b.date - a.date)
+    .slice(0, 5);
+
   const enroll = (courseId) => {
     if ((enrollments || []).some(e => e.userId === user.id && e.courseId === courseId)) return;
     setEnrollments([...enrollments, { userId: user.id, courseId }]);
@@ -81,7 +108,10 @@ export default function StudentDashboard() {
       const already = prev[courseId]?.completedTopics || [];
       const nextTopics = Array.from(new Set([...already, topic]));
       const progress = totalTopics ? Math.round((nextTopics.length / totalTopics) * 100) : 0;
-      return { ...prev, [courseId]: { completedTopics: nextTopics, progress } };
+      const wasComplete = prev[courseId]?.progress >= 100;
+      const nowComplete = progress >= 100;
+      const completedAt = nowComplete ? (wasComplete ? prev[courseId]?.completedAt : new Date().toISOString()) : prev[courseId]?.completedAt || null;
+      return { ...prev, [courseId]: { completedTopics: nextTopics, progress, completedAt } };
     });
   };
 
@@ -92,6 +122,30 @@ export default function StudentDashboard() {
   const handleQuizComplete = (attemptData) => {
     setQuizAttempts([...quizAttempts, attemptData]);
     setTakingQuiz(null);
+  };
+
+  useEffect(() => {
+    if (pendingRatingCourses.length > 0 && !ratingCourseId) {
+      setRatingCourseId(pendingRatingCourses[0].id);
+    }
+  }, [pendingRatingCourses, ratingCourseId]);
+
+  const saveCourseRating = (courseId) => {
+    if (!courseId) return;
+    const nextRatingCourse = pendingRatingCourses.find(course => course.id !== courseId);
+    setCourseRatings(prev => ({
+      ...prev,
+      [courseId]: {
+        courseRating: Number(courseRatingValue),
+        instructorRating: Number(instructorRatingValue),
+        comment: ratingComment,
+        ratedAt: new Date().toISOString(),
+      }
+    }));
+    setCourseRatingValue(5);
+    setInstructorRatingValue(5);
+    setRatingComment("");
+    setRatingCourseId(nextRatingCourse?.id || "");
   };
 
   return (
@@ -136,11 +190,6 @@ export default function StudentDashboard() {
             <li className="nav-item mb-2">
               <button className={`nav-link btn btn-link text-start ${activeTab === "browse" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("browse")}>
                 <i className="bi bi-search me-2"></i>Browse Courses
-              </button>
-            </li>
-            <li className="nav-item mb-2">
-              <button className={`nav-link btn btn-link text-start ${activeTab === "mandatory courses" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("mandatory courses")}>
-                <i className="bi bi-asterisk me-2"></i>Mandatory Courses
               </button>
             </li>
             <li className="nav-item mb-2">
@@ -216,8 +265,58 @@ export default function StudentDashboard() {
                   </div>
                 </div>
               </div>
+              <div className="row mt-3">
+                <div className="col-md-4 mb-3">
+                  <div className="card text-center shadow-sm border-primary">
+                    <div className="card-body">
+                      <h6 className="card-title text-uppercase">Avg Course Rating</h6>
+                      <p className="display-4 text-primary">
+                        {Object.values(courseRatings).length
+                          ? (Object.values(courseRatings).reduce((sum, r) => sum + (r.courseRating || 0), 0) / Object.values(courseRatings).length).toFixed(1)
+                          : '0.0'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-4 mb-3">
+                  <div className="card text-center shadow-sm border-success">
+                    <div className="card-body">
+                      <h6 className="card-title text-uppercase">Avg Instructor Rating</h6>
+                      <p className="display-4 text-success">
+                        {Object.values(courseRatings).length
+                          ? (Object.values(courseRatings).reduce((sum, r) => sum + (r.instructorRating || 0), 0) / Object.values(courseRatings).length).toFixed(1)
+                          : '0.0'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-4 mb-3">
+                  <div className="card text-center shadow-sm border-warning">
+                    <div className="card-body">
+                      <h6 className="card-title text-uppercase">Total Rated Courses</h6>
+                      <p className="display-4 text-warning">{Object.keys(courseRatings).length}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <h4>Recent Activity</h4>
-              <p>No recent activity.</p>
+              {recentActivity.length > 0 ? (
+                <ul className="list-group">
+                  {recentActivity.map((item, idx) => (
+                    <li key={idx} className="list-group-item d-flex justify-content-between align-items-center">
+                      <div>
+                        <strong>{item.title}</strong>
+                        <div className="text-muted small">{item.date.toLocaleString()}</div>
+                      </div>
+                      <span className={`badge ${item.type === 'course' ? 'bg-success' : 'bg-primary'} rounded-pill`}>
+                        {item.type === 'course' ? 'Course' : `Quiz ${item.score ?? ''}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted">No recent activity yet. Start completing courses and quizzes to see activity here.</p>
+              )}
             </div>
           )}
 
@@ -295,6 +394,61 @@ export default function StudentDashboard() {
           {activeTab === "Completed Courses" && (
             <div>
               <h2 className="mb-4 fw-bold text-dark">Completed Courses</h2>
+              {pendingRatingCourses.length > 0 && (
+                <div className="alert alert-info">
+                  <h5 className="alert-heading">Rate Completed Course</h5>
+                  <p>Please help improve the platform by rating the course and instructor.</p>
+                  <div className="mb-3">
+                    <label className="form-label">Course</label>
+                    <select
+                      className="form-select"
+                      value={ratingCourseId}
+                      onChange={(e) => setRatingCourseId(e.target.value)}
+                    >
+                      {pendingRatingCourses.map(course => (
+                        <option key={course.id} value={course.id}>{course.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="row g-3 mb-3">
+                    <div className="col-md-6">
+                      <label className="form-label">Course Rating</label>
+                      <div>
+                        {[1, 2, 3, 4, 5].map(score => (
+                          <i
+                            key={score}
+                            className={`bi ${score <= courseRatingValue ? 'bi-star-fill text-warning' : 'bi-star text-secondary'}`}
+                            style={{ cursor: 'pointer', fontSize: '1.4rem', marginRight: '4px' }}
+                            onClick={() => setCourseRatingValue(score)}
+                          ></i>
+                        ))}
+                        <span className="ms-2">{courseRatingValue} / 5</span>
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Instructor Rating</label>
+                      <div>
+                        {[1, 2, 3, 4, 5].map(score => (
+                          <i
+                            key={score}
+                            className={`bi ${score <= instructorRatingValue ? 'bi-star-fill text-info' : 'bi-star text-secondary'}`}
+                            style={{ cursor: 'pointer', fontSize: '1.4rem', marginRight: '4px' }}
+                            onClick={() => setInstructorRatingValue(score)}
+                          ></i>
+                        ))}
+                        <span className="ms-2">{instructorRatingValue} / 5</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Comments</label>
+                    <textarea className="form-control" value={ratingComment} onChange={(e) => setRatingComment(e.target.value)} rows={2} placeholder="What did you like? Any improvement suggestions?" />
+                  </div>
+                  <button className="btn btn-primary" onClick={() => saveCourseRating(ratingCourseId)}>
+                    Submit Rating
+                  </button>
+                </div>
+              )}
               <div className="row">
                 {completedCourses.map(course => (
                   <div key={course.id} className="col-md-6 mb-4">
@@ -435,6 +589,7 @@ export default function StudentDashboard() {
               courseProgress={courseProgress}
               quizAttempts={quizAttempts}
               quizzes={quizzes}
+              courseRatings={courseRatings}
             />
           )}
 

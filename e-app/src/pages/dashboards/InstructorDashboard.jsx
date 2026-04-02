@@ -184,7 +184,7 @@ export default function InstructorDashboard() {
 
           {activeTab === "quizzes" && (
             <ErrorBoundary>
-              <QuizManagement courses={courses} quizzes={myQuizzes} quizAttempts={quizAttempts} onCreateQuiz={addQuiz} onUpdateQuiz={updateQuiz} onPublishQuiz={publishQuiz} onExtendDeadline={extendDeadline} />
+              <QuizManagement courses={myCourses} quizzes={myQuizzes} quizAttempts={quizAttempts} onCreateQuiz={addQuiz} onUpdateQuiz={updateQuiz} onPublishQuiz={publishQuiz} onExtendDeadline={extendDeadline} />
             </ErrorBoundary>
           )}
 

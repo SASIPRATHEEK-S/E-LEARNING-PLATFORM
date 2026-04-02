@@ -13,9 +13,14 @@ const InstructorAnalytics = ({ userId, courses, enrollments, quizzes, quizAttemp
   const courseProgress = JSON.parse(rawProgress);
 
   // Overview Cards Data
+  const courseRatings = JSON.parse(localStorage.getItem('APP_COURSE_RATINGS') || '{}');
+  const myCourseRatings = myCourses.map(course => courseRatings[course.id]).filter(Boolean);
+  const avgInstructorRating = myCourseRatings.length > 0 ? (myCourseRatings.reduce((sum, r) => sum + (r.instructorRating || 0), 0) / myCourseRatings.length).toFixed(1) : '0.0';
+
   const totalStudents = new Set(myEnrollments.map(e => e.userId)).size;
   const totalRevenue = myEnrollments.length * 50; // Assuming $50 per enrollment
-  const averageRating = 4.5; // TODO: replace with real rating field when available
+  const averageRating = avgInstructorRating;
+  const avgCourseRating = averageRating; // alias for display without throwing reference error
   const completionRate = myCourses.length > 0
     ? Math.round(myCourses.reduce((acc, c) => acc + (courseProgress[c.id]?.progress || 0), 0) / myCourses.length)
     : 0;
@@ -75,14 +80,14 @@ const InstructorAnalytics = ({ userId, courses, enrollments, quizzes, quizAttemp
     };
   });
 
-  // Drop-off Analysis (mock data)
+  // Drop-off Analysis (dynamic based on course progress)
   const dropOffData = [
     { lesson: 'Introduction', completion: 100 },
-    { lesson: 'Chapter 1', completion: 85 },
-    { lesson: 'Chapter 2', completion: 70 },
-    { lesson: 'Chapter 3', completion: 55 },
-    { lesson: 'Chapter 4', completion: 40 },
-    { lesson: 'Final Quiz', completion: 30 }
+    { lesson: 'Chapter 1', completion: myCourses.length > 0 ? Math.round(myCourses.reduce((sum, course) => sum + Math.min(courseProgress[course.id]?.progress || 0, 20), 0) / myCourses.length) : 0 },
+    { lesson: 'Chapter 2', completion: myCourses.length > 0 ? Math.round(myCourses.reduce((sum, course) => sum + Math.min(courseProgress[course.id]?.progress || 0, 40), 0) / myCourses.length) : 0 },
+    { lesson: 'Chapter 3', completion: myCourses.length > 0 ? Math.round(myCourses.reduce((sum, course) => sum + Math.min(courseProgress[course.id]?.progress || 0, 60), 0) / myCourses.length) : 0 },
+    { lesson: 'Chapter 4', completion: myCourses.length > 0 ? Math.round(myCourses.reduce((sum, course) => sum + Math.min(courseProgress[course.id]?.progress || 0, 80), 0) / myCourses.length) : 0 },
+    { lesson: 'Final Quiz', completion: myCourses.length > 0 ? Math.round(myCourses.reduce((sum, course) => sum + (courseProgress[course.id]?.progress || 0), 0) / myCourses.length) : 0 }
   ];
 
   // Quiz Performance
@@ -91,12 +96,17 @@ const InstructorAnalytics = ({ userId, courses, enrollments, quizzes, quizAttemp
     passRate: Math.round((myQuizAttempts.filter(qa => (qa.score || 0) >= 60).length / myQuizAttempts.length) * 100)
   } : { averageScore: 0, passRate: 0 };
 
-  // Recent Reviews (mock)
-  const recentReviews = [
-    { student: 'John Doe', rating: 5, review: 'Excellent course!', date: '2024-03-15' },
-    { student: 'Jane Smith', rating: 4, review: 'Very informative.', date: '2024-03-10' },
-    { student: 'Bob Johnson', rating: 5, review: 'Great instructor!', date: '2024-03-05' }
-  ];
+  // Recent Reviews (dynamic from course ratings)
+  const recentReviews = myCourseRatings
+    .filter(r => r.comment)
+    .sort((a, b) => new Date(b.ratedAt) - new Date(a.ratedAt))
+    .slice(0, 3)
+    .map(r => ({
+      student: 'Anonymous Student', // Since we don't have student names in ratings
+      rating: r.courseRating,
+      review: r.comment,
+      date: new Date(r.ratedAt).toLocaleDateString()
+    }));
 
   return (
     <div className="instructor-analytics">
@@ -137,6 +147,24 @@ const InstructorAnalytics = ({ userId, courses, enrollments, quizzes, quizAttemp
               <i className="bi bi-check-circle-fill display-4 text-info mb-2"></i>
               <h5 className="card-title">Completion Rate</h5>
               <h3 className="text-info">{completionRate}%</h3>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3 mb-3">
+          <div className="card shadow border-0 h-100">
+            <div className="card-body text-center">
+              <i className="bi bi-star-fill display-4 text-warning mb-2"></i>
+              <h5 className="card-title">Avg Course Rating</h5>
+              <h3 className="text-warning">{avgCourseRating}</h3>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3 mb-3">
+          <div className="card shadow border-0 h-100">
+            <div className="card-body text-center">
+              <i className="bi bi-person-badge-fill display-4 text-success mb-2"></i>
+              <h5 className="card-title">Avg Instructor Rating</h5>
+              <h3 className="text-success">{avgInstructorRating}</h3>
             </div>
           </div>
         </div>

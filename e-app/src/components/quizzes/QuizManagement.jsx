@@ -71,6 +71,15 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
     }
   };
 
+  const handleEndQuiz = (quiz) => {
+    if (window.confirm(`Are you sure you want to end the quiz "${quiz.title}"? This will make it unavailable to students.`)) {
+      // Update quiz to unpublish it (move to created quizzes)
+      const updatedQuiz = { ...quiz, published: false, endedAt: new Date().toISOString() };
+      onUpdateQuiz(quiz.id, updatedQuiz);
+      alert('Quiz ended successfully!');
+    }
+  };
+
   return (
     <div className="container-fluid">
       {/* Sub Navbar */}
@@ -189,7 +198,7 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
                       <button className="btn btn-warning btn-sm me-2" onClick={() => handleExtendClick(quiz)}>
                         <i className="bi bi-calendar-plus me-1"></i>Extend Deadline
                       </button>
-                      <button className="btn btn-danger btn-sm">
+                      <button className="btn btn-danger btn-sm" onClick={() => handleEndQuiz(quiz)}>
                         <i className="bi bi-x-circle me-1"></i>End Quiz
                       </button>
                     </div>
