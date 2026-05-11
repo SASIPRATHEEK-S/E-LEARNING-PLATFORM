@@ -4,10 +4,13 @@ import Navbar from "../components/layout/Navbar";
 import SignupForm from "../components/forms/SignupForm";
 import { useAuth } from "../context/AuthContext";
 
+// Signup page - redirects logged-in users to their dashboard
 export default function Signup() {
+  // Get current authentication state
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
+  // If user is already logged in, redirect to their dashboard
   useEffect(() => {
     if (isAuthenticated && user) {
       navigate(`/dashboard/${user.role}`, { replace: true });
@@ -17,9 +20,12 @@ export default function Signup() {
   return (
     <>
       <Navbar />
-      <div className="container mt-5" style={{ maxWidth: '400px' }}>
+      <div className="container mt-5" style={{ maxWidth: "500px" }}>
         <SignupForm />
       </div>
     </>
   );
 }
+
+
+//this page used as route in app.jsx

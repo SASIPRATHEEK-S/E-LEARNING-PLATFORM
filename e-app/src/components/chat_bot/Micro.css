@@ -1,13 +1,12 @@
-
 .mic {
   position: relative;
   width: 20px;
   height: 30px;
   border: 3px solid #2563eb;
   border-radius: 12px;
-  
+
   box-sizing: border-box;
-  transform: scale(0.3)
+  transform: scale(0.3);
 }
 
 /* Curved holder */
@@ -37,4 +36,3 @@
   transform: translateX(-50%);
   box-shadow: 0 20px 0 0 #2563eb;
 }
-

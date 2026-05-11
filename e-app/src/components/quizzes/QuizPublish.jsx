@@ -1,64 +1,74 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
+import { useToast } from "../../context/ToastContext";
 
+// QuizPublish - set quiz settings and publish it for students to take
 const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
+  const toast = useToast();
+  // Store all publishing settings for the quiz
   const [publishData, setPublishData] = useState({
-    deadline: '',
-    deadlineTime: '23:59',
-    maxAttempts: 1,
-    passingPercentage: 40,
-    hasPassingPercentage: true,
-    showScoreToStudent: true,
-    allowMultipleAttempts: false,
-    timeLimit: 0, // in minutes, 0 means no limit
-    hasTimeLimit: false
+    deadline: "", // When quiz deadline is
+    deadlineTime: "23:59", // Time of deadline
+    maxAttempts: 1, // How many times student can retake
+    passingPercentage: 40, // Score needed to pass
+    hasPassingPercentage: true, // Enable/disable passing percentage
+    showScoreToStudent: true, // Show student their score
+    allowMultipleAttempts: false, // Allow retakes
+    timeLimit: 0, // Quiz time limit in minutes (0 = no limit)
+    hasTimeLimit: false, // Enable/disable time limit
   });
 
   const safeCourses = Array.isArray(courses) ? courses : [];
 
   const formatDeadlineDisplay = () => {
-    if (!publishData.deadline) return '';
+    if (!publishData.deadline) return "";
     const date = new Date(publishData.deadline);
     const options = {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
       hour12: true,
-      timeZone: 'Asia/Kolkata'
+      timeZone: "Asia/Kolkata",
     };
-    return new Intl.DateTimeFormat('en-IN', options).format(date);
+    return new Intl.DateTimeFormat("en-IN", options).format(date);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!publishData.deadline) {
-      alert('Please set a deadline for the quiz.');
+      toast.warning("Please set a deadline for the quiz.");
       return;
     }
 
     const deadlineDate = new Date(publishData.deadline);
     if (deadlineDate <= new Date()) {
-      alert('Deadline must be in the future.');
+      toast.warning("Deadline must be in the future.");
       return;
     }
 
-    if (publishData.hasPassingPercentage && (publishData.passingPercentage < 0 || publishData.passingPercentage > 100)) {
-      alert('Passing percentage must be between 0 and 100.');
+    if (
+      publishData.hasPassingPercentage &&
+      (publishData.passingPercentage < 0 || publishData.passingPercentage > 100)
+    ) {
+      toast.warning("Passing percentage must be between 0 and 100.");
       return;
     }
 
     onPublish({
       ...publishData,
       published: true,
-      publishedAt: new Date().toISOString()
+      publishedAt: new Date().toISOString(),
     });
   };
 
   return (
-    <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+    <div
+      className="modal show d-block"
+      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+    >
       <div className="modal-dialog modal-lg">
         <div className="modal-content">
           <div className="modal-header bg-primary text-white">
@@ -70,19 +80,23 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
             ></button>
           </div>
           <form onSubmit={handleSubmit}>
-            <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+            <div
+              className="modal-body"
+              style={{ maxHeight: "70vh", overflowY: "auto" }}
+            >
               <div className="row">
                 <div className="col-md-6 mb-3">
                   <label className="form-label fw-bold">Deadline (Date)</label>
                   <input
                     type="date"
                     className="form-control"
-                    value={publishData.deadline.split('T')[0] || ''}
+                    value={publishData.deadline.split("T")[0] || ""}
                     onChange={(e) => {
-                      const currentTime = publishData.deadline.split('T')[1] || '23:59:00';
+                      const currentTime =
+                        publishData.deadline.split("T")[1] || "23:59:00";
                       setPublishData({
                         ...publishData,
-                        deadline: `${e.target.value}T${currentTime}`
+                        deadline: `${e.target.value}T${currentTime}`,
                       });
                     }}
                     required
@@ -90,16 +104,23 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
                 </div>
 
                 <div className="col-md-6 mb-3">
-                  <label className="form-label fw-bold">Deadline Time (IST)</label>
+                  <label className="form-label fw-bold">
+                    Deadline Time (IST)
+                  </label>
                   <input
                     type="time"
                     className="form-control"
-                    value={publishData.deadline.split('T')[1]?.substring(0, 5) || '23:59'}
+                    value={
+                      publishData.deadline.split("T")[1]?.substring(0, 5) ||
+                      "23:59"
+                    }
                     onChange={(e) => {
-                      const currentDate = publishData.deadline.split('T')[0] || new Date().toISOString().split('T')[0];
+                      const currentDate =
+                        publishData.deadline.split("T")[0] ||
+                        new Date().toISOString().split("T")[0];
                       setPublishData({
                         ...publishData,
-                        deadline: `${currentDate}T${e.target.value}:00`
+                        deadline: `${currentDate}T${e.target.value}:00`,
                       });
                     }}
                     required
@@ -112,7 +133,8 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
 
               {publishData.deadline && (
                 <div className="alert alert-info mb-3">
-                  <strong>Deadline Preview (IST):</strong><br/>
+                  <strong>Deadline Preview (IST):</strong>
+                  <br />
                   {formatDeadlineDisplay()}
                 </div>
               )}
@@ -123,11 +145,13 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
                   <select
                     className="form-select"
                     value={publishData.maxAttempts}
-                    onChange={(e) => setPublishData({
-                      ...publishData,
-                      maxAttempts: parseInt(e.target.value),
-                      allowMultipleAttempts: parseInt(e.target.value) > 1
-                    })}
+                    onChange={(e) =>
+                      setPublishData({
+                        ...publishData,
+                        maxAttempts: parseInt(e.target.value),
+                        allowMultipleAttempts: parseInt(e.target.value) > 1,
+                      })
+                    }
                   >
                     <option value={1}>1 Attempt</option>
                     <option value={2}>2 Attempts</option>
@@ -145,12 +169,17 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
                       type="checkbox"
                       id="hasPassingPercentage"
                       checked={publishData.hasPassingPercentage}
-                      onChange={(e) => setPublishData({
-                        ...publishData,
-                        hasPassingPercentage: e.target.checked
-                      })}
+                      onChange={(e) =>
+                        setPublishData({
+                          ...publishData,
+                          hasPassingPercentage: e.target.checked,
+                        })
+                      }
                     />
-                    <label className="form-check-label fw-bold" htmlFor="hasPassingPercentage">
+                    <label
+                      className="form-check-label fw-bold"
+                      htmlFor="hasPassingPercentage"
+                    >
                       Set Passing Percentage
                     </label>
                   </div>
@@ -159,7 +188,9 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
 
               {publishData.hasPassingPercentage && (
                 <div className="mb-3">
-                  <label className="form-label fw-bold">Passing Percentage Required</label>
+                  <label className="form-label fw-bold">
+                    Passing Percentage Required
+                  </label>
                   <div className="input-group">
                     <input
                       type="number"
@@ -167,15 +198,18 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
                       min="0"
                       max="100"
                       value={publishData.passingPercentage}
-                      onChange={(e) => setPublishData({
-                        ...publishData,
-                        passingPercentage: parseInt(e.target.value) || 0
-                      })}
+                      onChange={(e) =>
+                        setPublishData({
+                          ...publishData,
+                          passingPercentage: parseInt(e.target.value) || 0,
+                        })
+                      }
                     />
                     <span className="input-group-text">%</span>
                   </div>
                   <div className="form-text">
-                    Students need to score at least this percentage to pass the quiz.
+                    Students need to score at least this percentage to pass the
+                    quiz.
                   </div>
                 </div>
               )}
@@ -187,16 +221,22 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
                     type="checkbox"
                     id="showScore"
                     checked={publishData.showScoreToStudent}
-                    onChange={(e) => setPublishData({
-                      ...publishData,
-                      showScoreToStudent: e.target.checked
-                    })}
+                    onChange={(e) =>
+                      setPublishData({
+                        ...publishData,
+                        showScoreToStudent: e.target.checked,
+                      })
+                    }
                   />
-                  <label className="form-check-label fw-bold" htmlFor="showScore">
+                  <label
+                    className="form-check-label fw-bold"
+                    htmlFor="showScore"
+                  >
                     Show score to student after completion
                   </label>
                   <div className="form-text">
-                    If unchecked, students will only see if they passed/failed without specific scores.
+                    If unchecked, students will only see if they passed/failed
+                    without specific scores.
                   </div>
                 </div>
               </div>
@@ -209,13 +249,18 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
                       type="checkbox"
                       id="hasTimeLimit"
                       checked={publishData.hasTimeLimit}
-                      onChange={(e) => setPublishData({
-                        ...publishData,
-                        hasTimeLimit: e.target.checked,
-                        timeLimit: e.target.checked ? 30 : 0
-                      })}
+                      onChange={(e) =>
+                        setPublishData({
+                          ...publishData,
+                          hasTimeLimit: e.target.checked,
+                          timeLimit: e.target.checked ? 30 : 0,
+                        })
+                      }
                     />
-                    <label className="form-check-label fw-bold" htmlFor="hasTimeLimit">
+                    <label
+                      className="form-check-label fw-bold"
+                      htmlFor="hasTimeLimit"
+                    >
                       Set Time Limit
                     </label>
                   </div>
@@ -223,14 +268,18 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
                 <div className="col-md-6 mb-3">
                   {publishData.hasTimeLimit && (
                     <div>
-                      <label className="form-label fw-bold">Time Limit (minutes)</label>
+                      <label className="form-label fw-bold">
+                        Time Limit (minutes)
+                      </label>
                       <select
                         className="form-select"
                         value={publishData.timeLimit}
-                        onChange={(e) => setPublishData({
-                          ...publishData,
-                          timeLimit: parseInt(e.target.value)
-                        })}
+                        onChange={(e) =>
+                          setPublishData({
+                            ...publishData,
+                            timeLimit: parseInt(e.target.value),
+                          })
+                        }
                       >
                         <option value={15}>15 minutes</option>
                         <option value={30}>30 minutes</option>
@@ -246,14 +295,28 @@ const QuizPublish = ({ quiz, courses, onClose, onPublish }) => {
               </div>
 
               <div className="alert alert-info">
-                <h6><i className="bi bi-info-circle me-2"></i>Quiz Summary</h6>
-                <p className="mb-1"><strong>Title:</strong> {quiz.title}</p>
-                <p className="mb-1"><strong>Total Questions:</strong> {quiz.totalQuestions}</p>
-                <p className="mb-0"><strong>Course:</strong> {safeCourses.find(c => c.id === quiz.courseId)?.title || quiz.courseId}</p>
+                <h6>
+                  <i className="bi bi-info-circle me-2"></i>Quiz Summary
+                </h6>
+                <p className="mb-1">
+                  <strong>Title:</strong> {quiz.title}
+                </p>
+                <p className="mb-1">
+                  <strong>Total Questions:</strong> {quiz.totalQuestions}
+                </p>
+                <p className="mb-0">
+                  <strong>Course:</strong>{" "}
+                  {safeCourses.find((c) => c.id === quiz.courseId)?.title ||
+                    quiz.courseId}
+                </p>
               </div>
             </div>
             <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onClose}
+              >
                 Cancel
               </button>
               <button type="submit" className="btn btn-success">

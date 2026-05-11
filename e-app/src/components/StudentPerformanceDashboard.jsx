@@ -1,50 +1,94 @@
-import React from 'react';
+import React from "react";
 
-const StudentPerformanceDashboard = ({ student, course, enrollments, courseProgress, quizAttempts, quizzes, onClose }) => {
-  // Calculate data directly from props
-  const enrollmentData = enrollments.find(e => e.userId === student.id && e.courseId === course.id);
-  
-  // Format enrollment date - use enrolledAt if available
-  const enrollmentDate = enrollmentData && enrollmentData.enrolledAt
-    ? new Date(enrollmentData.enrolledAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-    : 'Not Available';
-  
-  const progressData = courseProgress[course.id] || { progress: 0, completedTopics: [] };
+// StudentPerformanceDashboard - show a specific student's progress and quiz performance in a course
+const StudentPerformanceDashboard = ({
+  student,
+  course,
+  enrollments,
+  courseProgress,
+  quizAttempts,
+  quizzes,
+  onClose,
+}) => {
+  // Get enrollment record for this student in this course
+  const enrollmentData = enrollments.find(
+    (e) => e.userId === student.id && e.courseId === course.id,
+  );
 
-  // Get quiz data for this course
-  const courseQuizzes = quizzes.filter(q => q.courseId === course.id && q.published);
-  const studentQuizAttempts = quizAttempts.filter(qa => qa.studentId === student.id && courseQuizzes.some(q => q.id === qa.quizId));
+  // Format when student enrolled in this course
+  const enrollmentDate =
+    enrollmentData && enrollmentData.enrolledAt
+      ? new Date(enrollmentData.enrolledAt).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : "Not Available";
 
-  const quizData = courseQuizzes.map(quiz => {
-    const attempt = studentQuizAttempts.find(qa => qa.quizId === quiz.id);
+  // Get student's progress in this course (0-100%)
+  const progressData = courseProgress[course.id] || {
+    progress: 0,
+    completedTopics: [],
+  };
+
+  // Get quizzes for this course
+  const courseQuizzes = quizzes.filter(
+    (q) => q.courseId === course.id && q.published,
+  );
+  // Get this student's quiz attempts for this course
+  const studentQuizAttempts = quizAttempts.filter(
+    (qa) =>
+      qa.studentId === student.id &&
+      courseQuizzes.some((q) => q.id === qa.quizId),
+  );
+
+  // Build detailed quiz data with scores, pass/fail status
+  const quizData = courseQuizzes.map((quiz) => {
+    const attempt = studentQuizAttempts.find((qa) => qa.quizId === quiz.id);
     return {
       quiz,
       attempt,
-      status: attempt ? 'Attempted' : 'Not Attempted',
-      score: attempt ? `${attempt.score}/100` : 'N/A',
-      passFail: attempt ? (attempt.score >= (quiz.passingPercentage || 70) ? 'Pass' : 'Fail') : 'N/A',
-      submissionStatus: attempt ? (new Date(attempt.completedAt) <= new Date(quiz.deadline) ? 'On-time' : 'Late') : 'N/A'
+      status: attempt ? "Attempted" : "Not Attempted",
+      score: attempt ? `${attempt.score}/100` : "N/A",
+      passFail: attempt
+        ? attempt.score >= (quiz.passingPercentage || 70)
+          ? "Pass"
+          : "Fail"
+        : "N/A",
+      submissionStatus: attempt
+        ? new Date(attempt.completedAt) <= new Date(quiz.deadline)
+          ? "On-time"
+          : "Late"
+        : "N/A",
     };
   });
 
   const getStatusBadge = () => {
-    if (!progressData) return { text: 'Unknown', class: 'badge bg-secondary' };
+    if (!progressData) return { text: "Unknown", class: "badge bg-secondary" };
 
     const progressPercent = progressData.progress || 0;
-    const lastActive = enrollmentData?.lastActive ? new Date(enrollmentData.lastActive) : null;
-    
+    const lastActive = enrollmentData?.lastActive
+      ? new Date(enrollmentData.lastActive)
+      : null;
+
     if (!lastActive) {
       // If no lastActive, check progress to determine status
-      if (progressPercent >= 80) return { text: 'Active', class: 'badge bg-success' };
-      if (progressPercent >= 50) return { text: 'Slow', class: 'badge bg-warning' };
-      return { text: 'At Risk', class: 'badge bg-danger' };
+      if (progressPercent >= 80)
+        return { text: "Active", class: "badge bg-success" };
+      if (progressPercent >= 50)
+        return { text: "Slow", class: "badge bg-warning" };
+      return { text: "At Risk", class: "badge bg-danger" };
     }
-    
-    const daysSinceActive = Math.floor((new Date() - lastActive) / (1000 * 60 * 60 * 24));
 
-    if (progressPercent >= 80 && daysSinceActive <= 7) return { text: 'Active', class: 'badge bg-success' };
-    if (progressPercent >= 50 && daysSinceActive <= 14) return { text: 'Slow', class: 'badge bg-warning' };
-    return { text: 'At Risk', class: 'badge bg-danger' };
+    const daysSinceActive = Math.floor(
+      (new Date() - lastActive) / (1000 * 60 * 60 * 24),
+    );
+
+    if (progressPercent >= 80 && daysSinceActive <= 7)
+      return { text: "Active", class: "badge bg-success" };
+    if (progressPercent >= 50 && daysSinceActive <= 14)
+      return { text: "Slow", class: "badge bg-warning" };
+    return { text: "At Risk", class: "badge bg-danger" };
   };
 
   const statusBadge = getStatusBadge();
@@ -55,49 +99,62 @@ const StudentPerformanceDashboard = ({ student, course, enrollments, courseProgr
 
   // Calculate watch time properly based on course duration
   const calculateWatchTime = () => {
-    if (!course.duration || progressPercent === 0) return '0 hrs 0 mins';
-    
+    if (!course.duration || progressPercent === 0) return "0 hrs 0 mins";
+
     let totalMinutes = 0;
-    
+
     // Try new format first: "12 weeks 20 days 10 hours"
     const weeksMatch = course.duration.match(/(\d+)\s*weeks?/i);
     const daysMatch = course.duration.match(/(\d+)\s*days?/i);
     const hoursMatch = course.duration.match(/(\d+)\s*hours?/i);
-    
+
     if (weeksMatch || daysMatch || hoursMatch) {
       // New format detected
       const weeks = weeksMatch ? parseInt(weeksMatch[1]) : 0;
       const days = daysMatch ? parseInt(daysMatch[1]) : 0;
       const hours = hoursMatch ? parseInt(hoursMatch[1]) : 0;
-      
-      totalMinutes = (weeks * 7 * 24 * 60) + (days * 24 * 60) + (hours * 60);
+
+      totalMinutes = weeks * 7 * 24 * 60 + days * 24 * 60 + hours * 60;
     } else {
       // Fallback to old single-unit format parsing
-      return '0 hrs 0 mins';
+      return "0 hrs 0 mins";
     }
-    
+
     // Calculate based on progress
     const watchedMinutes = Math.round((progressPercent / 100) * totalMinutes);
     const hours = Math.floor(watchedMinutes / 60);
     const mins = watchedMinutes % 60;
-    
+
     return `${hours} hrs ${mins} mins`;
   };
 
   const totalWatchTime = calculateWatchTime();
 
   // Format lastActive date with time
-  const lastActiveDate = enrollmentData?.lastActive 
-    ? new Date(enrollmentData.lastActive).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : 'Never';
+  const lastActiveDate = enrollmentData?.lastActive
+    ? new Date(enrollmentData.lastActive).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "Never";
 
   return (
-    <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+    <div
+      className="modal show d-block"
+      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+    >
       <div className="modal-dialog modal-lg">
         <div className="modal-content">
           <div className="modal-header bg-primary text-white">
             <h5 className="modal-title">Student Performance Dashboard</h5>
-            <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
+            <button
+              type="button"
+              className="btn-close btn-close-white"
+              onClick={onClose}
+            ></button>
           </div>
           <div className="modal-body">
             {/* Student Information */}
@@ -111,12 +168,20 @@ const StudentPerformanceDashboard = ({ student, course, enrollments, courseProgr
               <div className="card-body">
                 <div className="row">
                   <div className="col-md-6">
-                    <p><strong>Student Name:</strong> {student.name}</p>
-                    <p><strong>Student ID:</strong> {student.id}</p>
+                    <p>
+                      <strong>Student Name:</strong> {student.name}
+                    </p>
+                    <p>
+                      <strong>Student ID:</strong> {student.id}
+                    </p>
                   </div>
                   <div className="col-md-6">
-                    <p><strong>Course Name:</strong> {course.title}</p>
-                    <p><strong>Enrollment Date:</strong> {enrollmentDate}</p>
+                    <p>
+                      <strong>Course Name:</strong> {course.title}
+                    </p>
+                    <p>
+                      <strong>Enrollment Date:</strong> {enrollmentDate}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -133,7 +198,7 @@ const StudentPerformanceDashboard = ({ student, course, enrollments, courseProgr
                     <span>Overall Progress</span>
                     <span className="fw-bold">{progressPercent}%</span>
                   </div>
-                  <div className="progress" style={{ height: '10px' }}>
+                  <div className="progress" style={{ height: "10px" }}>
                     <div
                       className="progress-bar bg-success"
                       role="progressbar"
@@ -213,18 +278,24 @@ const StudentPerformanceDashboard = ({ student, course, enrollments, courseProgr
                           <tr key={index}>
                             <td>{item.quiz.title}</td>
                             <td>
-                              <span className={`badge ${item.status === 'Attempted' ? 'bg-success' : 'bg-secondary'}`}>
+                              <span
+                                className={`badge ${item.status === "Attempted" ? "bg-success" : "bg-secondary"}`}
+                              >
                                 {item.status}
                               </span>
                             </td>
                             <td className="fw-bold">{item.score}</td>
                             <td>
-                              <span className={`badge ${item.passFail === 'Pass' ? 'bg-success' : item.passFail === 'Fail' ? 'bg-danger' : 'bg-secondary'}`}>
+                              <span
+                                className={`badge ${item.passFail === "Pass" ? "bg-success" : item.passFail === "Fail" ? "bg-danger" : "bg-secondary"}`}
+                              >
                                 {item.passFail}
                               </span>
                             </td>
                             <td>
-                              <span className={`badge ${item.submissionStatus === 'On-time' ? 'bg-success' : item.submissionStatus === 'Late' ? 'bg-warning' : 'bg-secondary'}`}>
+                              <span
+                                className={`badge ${item.submissionStatus === "On-time" ? "bg-success" : item.submissionStatus === "Late" ? "bg-warning" : "bg-secondary"}`}
+                              >
                                 {item.submissionStatus}
                               </span>
                             </td>
@@ -234,7 +305,9 @@ const StudentPerformanceDashboard = ({ student, course, enrollments, courseProgr
                     </table>
                   </div>
                 ) : (
-                  <p className="text-muted text-center py-3">No quizzes available for this course</p>
+                  <p className="text-muted text-center py-3">
+                    No quizzes available for this course
+                  </p>
                 )}
               </div>
             </div>
@@ -246,23 +319,38 @@ const StudentPerformanceDashboard = ({ student, course, enrollments, courseProgr
               </div>
               <div className="card-body">
                 <div className="text-center py-3">
-                  <p className="text-muted mb-0">Assignment tracking feature coming soon</p>
-                  <small className="text-muted">This will show submitted assignments and deadlines</small>
+                  <p className="text-muted mb-0">
+                    Assignment tracking feature coming soon
+                  </p>
+                  <small className="text-muted">
+                    This will show submitted assignments and deadlines
+                  </small>
                 </div>
               </div>
             </div>
 
             {/* Optional: Send Reminder */}
-            {statusBadge.text === 'At Risk' && (
+            {statusBadge.text === "At Risk" && (
               <div className="alert alert-warning">
                 <h6 className="alert-heading">Student Needs Attention</h6>
-                <p className="mb-2">This student appears to be at risk. Consider sending a reminder to encourage progress.</p>
-                <button className="btn btn-warning btn-sm">Send Reminder</button>
+                <p className="mb-2">
+                  This student appears to be at risk. Consider sending a
+                  reminder to encourage progress.
+                </p>
+                <button className="btn btn-warning btn-sm">
+                  Send Reminder
+                </button>
               </div>
             )}
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onClose}
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

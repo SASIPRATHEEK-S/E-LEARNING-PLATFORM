@@ -1,29 +1,47 @@
-import React, { useState } from 'react';
-import ManualQuizCreator from '../forms/ManualQuizCreator';
-import QuizPreview from './QuizPreview';
-import QuizPublish from './QuizPublish';
-import QuizAnalytics from './QuizAnalytics';
+import React, { useState } from "react";
+import ManualQuizCreator from "../forms/ManualQuizCreator";
+import QuizPreview from "./QuizPreview";
+import QuizPublish from "./QuizPublish";
+import QuizAnalytics from "./QuizAnalytics";
+import { useToast } from "../../context/ToastContext";
 
-const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublishQuiz, onExtendDeadline, quizAttempts = [] }) => {
-  const [activeSubTab, setActiveSubTab] = useState('create');
+// QuizManagement - instructor interface to create, edit, publish and manage quizzes
+const QuizManagement = ({
+  courses,
+  quizzes,
+  onCreateQuiz,
+  onUpdateQuiz,
+  onPublishQuiz,
+  onExtendDeadline,
+  quizAttempts = [],
+  users = [],
+}) => {
+  const toast = useToast();
+  // Track active tab (create, preview, publish, analytics)
+  const [activeSubTab, setActiveSubTab] = useState("create");
+  // Store currently selected quiz for editing/publishing
   const [selectedQuiz, setSelectedQuiz] = useState(null);
+  // Show/hide publish modal popup
   const [showPublishModal, setShowPublishModal] = useState(false);
+  // Show/hide extend deadline modal
   const [showExtendModal, setShowExtendModal] = useState(false);
+  // Data for extending quiz deadline
   const [extendData, setExtendData] = useState({
-    newDeadline: '',
-    newDeadlineTime: '23:59'
+    newDeadline: "",
+    newDeadlineTime: "23:59",
   });
 
   // Safety checks - ensure data is always arrays
   const safeCourses = Array.isArray(courses) ? courses : [];
   const safeQuizzes = Array.isArray(quizzes) ? quizzes : [];
 
-  const createdQuizzes = safeQuizzes.filter(q => q && !q.published);
-  const publishedQuizzes = safeQuizzes.filter(q => q && q.published);
+  // Separate draft quizzes from published ones
+  const createdQuizzes = safeQuizzes.filter((q) => q && !q.published);
+  const publishedQuizzes = safeQuizzes.filter((q) => q && q.published);
 
   const handleQuizClick = (quiz) => {
     setSelectedQuiz(quiz);
-    setActiveSubTab('preview');
+    setActiveSubTab("preview");
   };
 
   const handlePublishClick = (quiz) => {
@@ -38,24 +56,26 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
     if (quiz.deadline) {
       const deadlineDate = new Date(quiz.deadline);
       setExtendData({
-        newDeadline: deadlineDate.toISOString().split('T')[0],
-        newDeadlineTime: deadlineDate.toTimeString().substring(0, 5)
+        newDeadline: deadlineDate.toISOString().split("T")[0],
+        newDeadlineTime: deadlineDate.toTimeString().substring(0, 5),
       });
     }
   };
 
   const handleExtendConfirm = () => {
     if (selectedQuiz && extendData.newDeadline) {
-      const newDeadline = new Date(`${extendData.newDeadline}T${extendData.newDeadlineTime}:00`);
+      const newDeadline = new Date(
+        `${extendData.newDeadline}T${extendData.newDeadlineTime}:00`,
+      );
       if (newDeadline <= new Date()) {
-        alert('New deadline must be in the future.');
+        toast.warning("New deadline must be in the future.");
         return;
       }
       onExtendDeadline(selectedQuiz.id, newDeadline.toISOString());
       setShowExtendModal(false);
       setSelectedQuiz(null);
-      setExtendData({ newDeadline: '', newDeadlineTime: '23:59' });
-      alert('Deadline extended successfully!');
+      setExtendData({ newDeadline: "", newDeadlineTime: "23:59" });
+      toast.success("Deadline extended successfully!");
     }
   };
 
@@ -64,19 +84,27 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
       onPublishQuiz(selectedQuiz.id, publishData);
       setShowPublishModal(false);
       setSelectedQuiz(null);
-      setActiveSubTab('published');
+      setActiveSubTab("published");
     } else {
-      alert('Error: Quiz not found');
+      toast.error("Error: Quiz not found");
       setShowPublishModal(false);
     }
   };
 
   const handleEndQuiz = (quiz) => {
-    if (window.confirm(`Are you sure you want to end the quiz "${quiz.title}"? This will make it unavailable to students.`)) {
+    if (
+      window.confirm(
+        `Are you sure you want to end the quiz "${quiz.title}"? This will make it unavailable to students.`,
+      )
+    ) {
       // Update quiz to unpublish it (move to created quizzes)
-      const updatedQuiz = { ...quiz, published: false, endedAt: new Date().toISOString() };
+      const updatedQuiz = {
+        ...quiz,
+        published: false,
+        endedAt: new Date().toISOString(),
+      };
       onUpdateQuiz(quiz.id, updatedQuiz);
-      alert('Quiz ended successfully!');
+      toast.success("Quiz ended successfully!");
     }
   };
 
@@ -87,26 +115,26 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
         <div className="container-fluid">
           <div className="navbar-nav mx-auto">
             <button
-              className={`nav-link mx-3 ${activeSubTab === 'create' ? 'text-primary fw-bold' : 'text-dark'}`}
-              onClick={() => setActiveSubTab('create')}
+              className={`nav-link mx-3 ${activeSubTab === "create" ? "text-primary fw-bold" : "text-dark"}`}
+              onClick={() => setActiveSubTab("create")}
             >
               <i className="bi bi-plus-circle me-2"></i>Create Quiz
             </button>
             <button
-              className={`nav-link mx-3 ${activeSubTab === 'created' ? 'text-primary fw-bold' : 'text-dark'}`}
-              onClick={() => setActiveSubTab('created')}
+              className={`nav-link mx-3 ${activeSubTab === "created" ? "text-primary fw-bold" : "text-dark"}`}
+              onClick={() => setActiveSubTab("created")}
             >
               <i className="bi bi-list-check me-2"></i>Created Quizzes
             </button>
             <button
-              className={`nav-link mx-3 ${activeSubTab === 'published' ? 'text-primary fw-bold' : 'text-dark'}`}
-              onClick={() => setActiveSubTab('published')}
+              className={`nav-link mx-3 ${activeSubTab === "published" ? "text-primary fw-bold" : "text-dark"}`}
+              onClick={() => setActiveSubTab("published")}
             >
               <i className="bi bi-check-circle me-2"></i>Published Quizzes
             </button>
             <button
-              className={`nav-link mx-3 ${activeSubTab === 'analytics' ? 'text-primary fw-bold' : 'text-dark'}`}
-              onClick={() => setActiveSubTab('analytics')}
+              className={`nav-link mx-3 ${activeSubTab === "analytics" ? "text-primary fw-bold" : "text-dark"}`}
+              onClick={() => setActiveSubTab("analytics")}
             >
               <i className="bi bi-bar-chart me-2"></i>Analytics
             </button>
@@ -115,30 +143,38 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
       </nav>
 
       {/* Content */}
-      {activeSubTab === 'create' && (
+      {activeSubTab === "create" && (
         <div className="row">
           <div className="col-12">
             <div className="card shadow border-0">
               <div className="card-body">
                 <h5 className="card-title fw-bold mb-3">Create Manual Quiz</h5>
-                <QuizCreatorWrapper courses={safeCourses} onCreateQuiz={onCreateQuiz} />
+                <QuizCreatorWrapper
+                  courses={safeCourses}
+                  onCreateQuiz={onCreateQuiz}
+                />
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {activeSubTab === 'created' && (
+      {activeSubTab === "created" && (
         <div>
           <h4 className="mb-4 fw-bold">Created Quizzes</h4>
           <div className="row">
-            {createdQuizzes.map(quiz => (
+            {createdQuizzes.map((quiz) => (
               <div key={quiz.id} className="col-md-4 mb-4">
                 <div className="card shadow border-0 h-100">
                   <div className="card-body d-flex flex-column">
                     <h6 className="fw-bold mb-2">{quiz.title}</h6>
-                    <p className="small text-muted mb-2">Course: {safeCourses.find(c => c.id === quiz.courseId)?.title}</p>
-                    <p className="small text-muted mb-3">Questions: {quiz.totalQuestions}</p>
+                    <p className="small text-muted mb-2">
+                      Course:{" "}
+                      {safeCourses.find((c) => c.id === quiz.courseId)?.title}
+                    </p>
+                    <p className="small text-muted mb-3">
+                      Questions: {quiz.totalQuestions}
+                    </p>
                     <div className="mt-auto">
                       <button
                         className="btn btn-primary btn-sm me-2"
@@ -162,7 +198,9 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
                 <div className="text-center py-5">
                   <i className="bi bi-info-circle display-4 text-muted mb-3"></i>
                   <h5 className="text-muted">No created quizzes yet</h5>
-                  <p className="text-muted">Create your first quiz to get started</p>
+                  <p className="text-muted">
+                    Create your first quiz to get started
+                  </p>
                 </div>
               </div>
             )}
@@ -170,10 +208,10 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
         </div>
       )}
 
-      {activeSubTab === 'preview' && selectedQuiz && (
+      {activeSubTab === "preview" && selectedQuiz && (
         <QuizPreview
           quiz={selectedQuiz}
-          onBack={() => setActiveSubTab('created')}
+          onBack={() => setActiveSubTab("created")}
           onUpdate={(updatedQuiz) => {
             if (selectedQuiz && selectedQuiz.id) {
               onUpdateQuiz(selectedQuiz.id, updatedQuiz);
@@ -182,23 +220,37 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
         />
       )}
 
-      {activeSubTab === 'published' && (
+      {activeSubTab === "published" && (
         <div>
           <h4 className="mb-4 fw-bold">Published Quizzes</h4>
           <div className="row">
-            {publishedQuizzes.map(quiz => (
+            {publishedQuizzes.map((quiz) => (
               <div key={quiz.id} className="col-md-4 mb-4">
                 <div className="card shadow border-0 h-100">
                   <div className="card-body d-flex flex-column">
                     <h6 className="fw-bold mb-2">{quiz.title}</h6>
-                    <p className="small text-muted mb-1">Course: {safeCourses.find(c => c.id === quiz.courseId)?.title}</p>
-                    <p className="small text-muted mb-1">Deadline: {new Date(quiz.deadline).toLocaleDateString()}</p>
-                    <p className="small text-muted mb-3">Attempts: {quiz.maxAttempts}</p>
+                    <p className="small text-muted mb-1">
+                      Course:{" "}
+                      {safeCourses.find((c) => c.id === quiz.courseId)?.title}
+                    </p>
+                    <p className="small text-muted mb-1">
+                      Deadline: {new Date(quiz.deadline).toLocaleDateString()}
+                    </p>
+                    <p className="small text-muted mb-3">
+                      Attempts: {quiz.maxAttempts}
+                    </p>
                     <div className="mt-auto">
-                      <button className="btn btn-warning btn-sm me-2" onClick={() => handleExtendClick(quiz)}>
-                        <i className="bi bi-calendar-plus me-1"></i>Extend Deadline
+                      <button
+                        className="btn btn-warning btn-sm me-2"
+                        onClick={() => handleExtendClick(quiz)}
+                      >
+                        <i className="bi bi-calendar-plus me-1"></i>Extend
+                        Deadline
                       </button>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleEndQuiz(quiz)}>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleEndQuiz(quiz)}
+                      >
                         <i className="bi bi-x-circle me-1"></i>End Quiz
                       </button>
                     </div>
@@ -219,8 +271,13 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
         </div>
       )}
 
-      {activeSubTab === 'analytics' && (
-        <QuizAnalytics quizzes={publishedQuizzes} courses={safeCourses} quizAttempts={quizAttempts} />
+      {activeSubTab === "analytics" && (
+        <QuizAnalytics
+          quizzes={publishedQuizzes}
+          courses={safeCourses}
+          quizAttempts={quizAttempts}
+          users={users}
+        />
       )}
 
       {showPublishModal && selectedQuiz && (
@@ -233,7 +290,10 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
       )}
 
       {showExtendModal && selectedQuiz && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div
+          className="modal show d-block"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header bg-warning text-dark">
@@ -246,42 +306,69 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
               </div>
               <div className="modal-body">
                 <div className="mb-3">
-                  <label className="form-label fw-bold">New Deadline Date</label>
+                  <label className="form-label fw-bold">
+                    New Deadline Date
+                  </label>
                   <input
                     type="date"
                     className="form-control"
                     value={extendData.newDeadline}
-                    onChange={(e) => setExtendData({...extendData, newDeadline: e.target.value})}
+                    onChange={(e) =>
+                      setExtendData({
+                        ...extendData,
+                        newDeadline: e.target.value,
+                      })
+                    }
                     required
                   />
                 </div>
                 <div className="mb-3">
-                  <label className="form-label fw-bold">New Deadline Time (IST)</label>
+                  <label className="form-label fw-bold">
+                    New Deadline Time (IST)
+                  </label>
                   <input
                     type="time"
                     className="form-control"
                     value={extendData.newDeadlineTime}
-                    onChange={(e) => setExtendData({...extendData, newDeadlineTime: e.target.value})}
+                    onChange={(e) =>
+                      setExtendData({
+                        ...extendData,
+                        newDeadlineTime: e.target.value,
+                      })
+                    }
                     required
                   />
-                  <div className="form-text">Time in Indian Standard Time (IST, UTC+5:30)</div>
+                  <div className="form-text">
+                    Time in Indian Standard Time (IST, UTC+5:30)
+                  </div>
                 </div>
                 {extendData.newDeadline && (
                   <div className="alert alert-info">
-                    <strong>New Deadline Preview:</strong><br/>
-                    {new Date(`${extendData.newDeadline}T${extendData.newDeadlineTime}:00`).toLocaleString('en-IN', {
-                      timeZone: 'Asia/Kolkata',
-                      dateStyle: 'full',
-                      timeStyle: 'short'
+                    <strong>New Deadline Preview:</strong>
+                    <br />
+                    {new Date(
+                      `${extendData.newDeadline}T${extendData.newDeadlineTime}:00`,
+                    ).toLocaleString("en-IN", {
+                      timeZone: "Asia/Kolkata",
+                      dateStyle: "full",
+                      timeStyle: "short",
                     })}
                   </div>
                 )}
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowExtendModal(false)}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowExtendModal(false)}
+                >
                   Cancel
                 </button>
-                <button type="button" className="btn btn-warning" onClick={handleExtendConfirm}>
+                <button
+                  type="button"
+                  className="btn btn-warning"
+                  onClick={handleExtendConfirm}
+                >
                   <i className="bi bi-calendar-plus me-2"></i>Extend Deadline
                 </button>
               </div>
@@ -304,21 +391,22 @@ const QuizManagement = ({ courses, quizzes, onCreateQuiz, onUpdateQuiz, onPublis
 
 // Wrapper for quiz creation
 const QuizCreatorWrapper = ({ courses, onCreateQuiz }) => {
-  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const toast = useToast();
 
   const safeCourses = courses || [];
 
   const handleCreateQuiz = (quizData) => {
     if (!selectedCourseId) {
-      alert('Please select a course for the quiz.');
+      toast.warning("Please select a course for the quiz.");
       return;
     }
     const quiz = {
       courseId: selectedCourseId,
-      ...quizData
+      ...quizData,
     };
     onCreateQuiz(quiz);
-    alert('Quiz created successfully!');
+    toast.success("Quiz created successfully!");
   };
 
   return (
@@ -331,8 +419,10 @@ const QuizCreatorWrapper = ({ courses, onCreateQuiz }) => {
           onChange={(e) => setSelectedCourseId(e.target.value)}
         >
           <option value="">Choose a course...</option>
-          {safeCourses.map(c => (
-            <option key={c.id} value={c.id}>{c.title}</option>
+          {safeCourses.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title}
+            </option>
           ))}
         </select>
       </div>

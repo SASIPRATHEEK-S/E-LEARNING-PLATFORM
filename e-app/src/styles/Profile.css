@@ -276,7 +276,6 @@
   background-color: #218838;
   border-color: #218838;
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3);
 }
 
 .action-buttons .btn-secondary {
@@ -323,8 +322,8 @@
 
 .course-card:hover,
 .certificate-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
   border-color: #667eea;
 }
 
@@ -345,11 +344,11 @@
 }
 
 .progress-bar {
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
 }
 
 .certificate-card {
-  background: linear-gradient(135deg, #fffaf0 0%, #fff8f0 100%);
+  background: #fffaf0;
   padding: 30px;
 }
 
@@ -365,17 +364,17 @@
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
   padding: 25px;
   border-radius: 10px;
   text-align: center;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
   transition: transform 0.3s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-4px);
 }
 
 .stat-value {

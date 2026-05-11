@@ -69,24 +69,24 @@ button:focus-visible {
 /* Carousel custom styles */
 .carousel-control-prev-icon,
 .carousel-control-next-icon {
-  width: 1.5rem !important;
-  height: 1.5rem !important;
-  background-size: 1.5rem 1.5rem !important;
+  width: 1.5rem;
+  height: 1.5rem;
+  background-size: 1.5rem 1.5rem;
 }
 
 .carousel-control-prev,
 .carousel-control-next {
-  width: 2.8rem !important;
-  height: 2.8rem !important;
-  border-radius: 50% !important;
-  background: rgba(0, 0, 0, 0.35) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  opacity: 0.95 !important;
-  z-index: 10 !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.95;
+  z-index: 10;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 /* Only force text to white for the hero carousel (so feature carousel can show dark text on light backgrounds) */
@@ -94,22 +94,22 @@ button:focus-visible {
 #heroCarousel .carousel-item p,
 #heroCarousel .carousel-item ul,
 #heroCarousel .carousel-item li {
-  color: white !important;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.6) !important;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
 }
 
 /* Ensure the hero carousel fills the viewport */
 #heroCarousel,
 #heroCarousel .carousel-inner,
 #heroCarousel .carousel-item {
-  height: 75vh !important;
-  min-height: 75vh !important;
+  height: 75vh;
+  min-height: 75vh;
 }
 
 /* Ensure the features carousel has consistent height and full width */
 #featuresCarousel,
 #featuresCarousel .carousel-inner,
 #featuresCarousel .carousel-item {
-  height: 60vh !important;
-  min-height: 60vh !important;
+  height: 60vh;
+  min-height: 60vh;
 }

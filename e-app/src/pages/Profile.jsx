@@ -2,10 +2,15 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import "../styles/Profile.css";
 
+// Student Profile page - manage personal info, settings, certificates, enrolled courses
 export default function Profile() {
+  // Get current user and functions from auth context
   const { user, logout, updateUserProfile } = useAuth();
+  // Track if user is editing profile
   const [isEditMode, setIsEditMode] = useState(false);
+  // Track which tab is active (information, settings, activity, etc)
   const [activeTab, setActiveTab] = useState("information");
+  // Store all profile data - personal info, preferences, passwords
   const [profileData, setProfileData] = useState({
     phoneNumber: "",
     dateOfBirth: "",
@@ -29,26 +34,70 @@ export default function Profile() {
   const [originalData, setOriginalData] = useState(profileData);
   const [message, setMessage] = useState({ type: "", text: "" });
 
-  // Simulated enrolled courses and certificates
-  const [enrolledCourses] = useState([
-    { id: 1, name: "React Basics", progress: 75, status: "in-progress" },
-    { id: 2, name: "JavaScript Advanced", progress: 100, status: "completed" },
-    { id: 3, name: "Web Design", progress: 50, status: "in-progress" },
-  ]);
-
-  const [certificates] = useState([
-    { id: 1, courseName: "JavaScript Advanced", completedDate: "2026-01-15" },
-    { id: 2, courseName: "HTML & CSS Basics", completedDate: "2025-12-20" },
-  ]);
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
+  const [certificates, setCertificates] = useState([]);
 
   useEffect(() => {
-    const savedProfile = localStorage.getItem(`PROFILE_${user.id}`);
-    if (savedProfile) {
-      const data = JSON.parse(savedProfile);
-      setProfileData(data);
-      setOriginalData(data);
-    }
-  }, [user.id]);
+    if (!user || user.role !== "student") return;
+    const fetchActivity = async () => {
+      try {
+        const API_BASE = "http://localhost:5000/api";
+        const [coursesRes, enrollmentsRes, progressRes] = await Promise.all([
+          fetch(`${API_BASE}/courses`, { credentials: "include" }),
+          fetch(`${API_BASE}/enrollments`, { credentials: "include" }),
+          fetch(`${API_BASE}/progress`, { credentials: "include" }),
+        ]);
+        if (!coursesRes.ok || !enrollmentsRes.ok || !progressRes.ok) return;
+        const allCourses = await coursesRes.json();
+        const enrollments = await enrollmentsRes.json();
+        const progress = await progressRes.json();
+        const progressMap = {};
+        progress.forEach((p) => (progressMap[p.courseId] = p));
+
+        const enrolled = enrollments
+          .filter((e) => e.userId === user.id)
+          .map((e) => allCourses.find((c) => c.id === e.courseId))
+          .filter(Boolean)
+          .map((c) => {
+            const pct = progressMap[c.id]?.progress || 0;
+            return {
+              id: c.id,
+              name: c.title,
+              progress: pct,
+              status: pct >= 100 ? "completed" : "in-progress",
+            };
+          });
+
+        setEnrolledCourses(enrolled);
+        setCertificates(
+          enrolled
+            .filter((c) => c.status === "completed")
+            .map((c) => ({
+              id: c.id,
+              courseName: c.name,
+              completedDate: progressMap[c.id]?.completedAt || progressMap[c.id]?.updatedAt,
+            })),
+        );
+      } catch (error) {
+        console.error("Failed to load profile activity", error);
+      }
+    };
+    fetchActivity();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    setProfileData((prev) => ({
+      ...prev,
+      ...(user.profile || {}),
+      profilePicturePreview: user.profile?.avatar || prev.profilePicturePreview,
+    }));
+    setOriginalData((prev) => ({
+      ...prev,
+      ...(user.profile || {}),
+      profilePicturePreview: user.profile?.avatar || prev.profilePicturePreview,
+    }));
+  }, [user]);
 
   useEffect(() => {
     if (profileData.darkMode) {
@@ -62,7 +111,7 @@ export default function Profile() {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setProfileData(prev => ({
+    setProfileData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
@@ -74,7 +123,7 @@ export default function Profile() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setProfileData(prev => ({
+        setProfileData((prev) => ({
           ...prev,
           profilePicture: file,
           profilePicturePreview: reader.result,
@@ -84,25 +133,36 @@ export default function Profile() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
       // Validation
-      if (profileData.newPassword && profileData.newPassword !== profileData.confirmPassword) {
+      if (
+        profileData.newPassword &&
+        profileData.newPassword !== profileData.confirmPassword
+      ) {
         setMessage({ type: "error", text: "Passwords do not match" });
         return;
       }
 
-      if (profileData.dateOfBirth && new Date(profileData.dateOfBirth) > new Date()) {
-        setMessage({ type: "error", text: "Date of birth cannot be in the future" });
+      if (
+        profileData.dateOfBirth &&
+        new Date(profileData.dateOfBirth) > new Date()
+      ) {
+        setMessage({
+          type: "error",
+          text: "Date of birth cannot be in the future",
+        });
         return;
       }
 
-      // Save profile
-      localStorage.setItem(`PROFILE_${user.id}`, JSON.stringify(profileData));
+      // Update user profile in backend and auth context
+      const updated = updateUserProfile
+        ? await updateUserProfile({ profile: profileData })
+        : null;
 
-      // Update user profile in auth context
-      if (updateUserProfile) {
-        updateUserProfile(profileData);
+      if (!updated) {
+        setMessage({ type: "error", text: "Failed to update profile" });
+        return;
       }
 
       setOriginalData(profileData);
@@ -121,7 +181,10 @@ export default function Profile() {
   };
 
   return (
-    <div className="profile-container" style={{ fontSize: `${profileData.fontSize}px` }}>
+    <div
+      className="profile-container"
+      style={{ fontSize: `${profileData.fontSize}px` }}
+    >
       {/* Header */}
       <div className="profile-header">
         <h1 className="mb-0">
@@ -131,10 +194,19 @@ export default function Profile() {
 
       {/* Message Alert */}
       {message.text && (
-        <div className={`alert alert-${message.type === "success" ? "success" : "danger"} alert-dismissible fade show`} role="alert">
-          <i className={`bi bi-${message.type === "success" ? "check-circle" : "exclamation-circle"} me-2`}></i>
+        <div
+          className={`alert alert-${message.type === "success" ? "success" : "danger"} alert-dismissible fade show`}
+          role="alert"
+        >
+          <i
+            className={`bi bi-${message.type === "success" ? "check-circle" : "exclamation-circle"} me-2`}
+          ></i>
           {message.text}
-          <button type="button" className="btn-close" onClick={() => setMessage({ type: "", text: "" })}></button>
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => setMessage({ type: "", text: "" })}
+          ></button>
         </div>
       )}
 
@@ -150,7 +222,9 @@ export default function Profile() {
           <div className="user-info text-center mb-4">
             <h4 className="mb-1">{user.name}</h4>
             <p className="text-muted mb-2">{user.email}</p>
-            <span className="badge bg-info">{user.role.charAt(0).toUpperCase() + user.role.slice(1)}</span>
+            <span className="badge bg-info">
+              {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+            </span>
           </div>
 
           <nav className="profile-nav">
@@ -326,7 +400,9 @@ export default function Profile() {
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
                       <option value="Other">Other</option>
-                      <option value="Prefer not to say">Prefer not to say</option>
+                      <option value="Prefer not to say">
+                        Prefer not to say
+                      </option>
                     </select>
                   ) : (
                     <input
@@ -363,10 +439,7 @@ export default function Profile() {
                 {/* Action Buttons */}
                 {isEditMode && (
                   <div className="action-buttons">
-                    <button
-                      className="btn btn-success"
-                      onClick={handleSave}
-                    >
+                    <button className="btn btn-success" onClick={handleSave}>
                       <i className="bi bi-check-circle me-2"></i>Save Changes
                     </button>
                     <button
@@ -446,7 +519,8 @@ export default function Profile() {
                 {/* Two-Factor Authentication */}
                 <div className="settings-group">
                   <h5 className="mb-3">
-                    <i className="bi bi-shield-check me-2"></i>Two-Factor Authentication
+                    <i className="bi bi-shield-check me-2"></i>Two-Factor
+                    Authentication
                   </h5>
                   {isEditMode ? (
                     <div className="form-check form-switch">
@@ -458,13 +532,18 @@ export default function Profile() {
                         checked={profileData.twoFactorAuth}
                         onChange={handleInputChange}
                       />
-                      <label className="form-check-label" htmlFor="twoFactorAuth">
+                      <label
+                        className="form-check-label"
+                        htmlFor="twoFactorAuth"
+                      >
                         Enable Two-Factor Authentication
                       </label>
                     </div>
                   ) : (
                     <p>
-                      <span className={`badge ${profileData.twoFactorAuth ? "bg-success" : "bg-secondary"}`}>
+                      <span
+                        className={`badge ${profileData.twoFactorAuth ? "bg-success" : "bg-secondary"}`}
+                      >
                         {profileData.twoFactorAuth ? "Enabled" : "Disabled"}
                       </span>
                     </p>
@@ -487,8 +566,12 @@ export default function Profile() {
                           checked={profileData.emailNotifications}
                           onChange={handleInputChange}
                         />
-                        <label className="form-check-label" htmlFor="emailNotifications">
-                          <i className="bi bi-envelope me-2"></i>Email Notifications
+                        <label
+                          className="form-check-label"
+                          htmlFor="emailNotifications"
+                        >
+                          <i className="bi bi-envelope me-2"></i>Email
+                          Notifications
                         </label>
                       </div>
                       <div className="form-check mb-2">
@@ -500,8 +583,12 @@ export default function Profile() {
                           checked={profileData.smsNotifications}
                           onChange={handleInputChange}
                         />
-                        <label className="form-check-label" htmlFor="smsNotifications">
-                          <i className="bi bi-telephone me-2"></i>SMS Notifications
+                        <label
+                          className="form-check-label"
+                          htmlFor="smsNotifications"
+                        >
+                          <i className="bi bi-telephone me-2"></i>SMS
+                          Notifications
                         </label>
                       </div>
                       <div className="form-check">
@@ -513,24 +600,39 @@ export default function Profile() {
                           checked={profileData.appNotifications}
                           onChange={handleInputChange}
                         />
-                        <label className="form-check-label" htmlFor="appNotifications">
-                          <i className="bi bi-app-indicator me-2"></i>App Notifications
+                        <label
+                          className="form-check-label"
+                          htmlFor="appNotifications"
+                        >
+                          <i className="bi bi-app-indicator me-2"></i>App
+                          Notifications
                         </label>
                       </div>
                     </>
                   ) : (
                     <div className="notification-summary">
                       <p>
-                        <i className={`bi ${profileData.emailNotifications ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger"} me-2`}></i>
-                        Email Notifications: {profileData.emailNotifications ? "Enabled" : "Disabled"}
+                        <i
+                          className={`bi ${profileData.emailNotifications ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger"} me-2`}
+                        ></i>
+                        Email Notifications:{" "}
+                        {profileData.emailNotifications
+                          ? "Enabled"
+                          : "Disabled"}
                       </p>
                       <p>
-                        <i className={`bi ${profileData.smsNotifications ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger"} me-2`}></i>
-                        SMS Notifications: {profileData.smsNotifications ? "Enabled" : "Disabled"}
+                        <i
+                          className={`bi ${profileData.smsNotifications ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger"} me-2`}
+                        ></i>
+                        SMS Notifications:{" "}
+                        {profileData.smsNotifications ? "Enabled" : "Disabled"}
                       </p>
                       <p>
-                        <i className={`bi ${profileData.appNotifications ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger"} me-2`}></i>
-                        App Notifications: {profileData.appNotifications ? "Enabled" : "Disabled"}
+                        <i
+                          className={`bi ${profileData.appNotifications ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger"} me-2`}
+                        ></i>
+                        App Notifications:{" "}
+                        {profileData.appNotifications ? "Enabled" : "Disabled"}
                       </p>
                     </div>
                   )}
@@ -539,10 +641,7 @@ export default function Profile() {
                 {/* Action Buttons */}
                 {isEditMode && (
                   <div className="action-buttons">
-                    <button
-                      className="btn btn-success"
-                      onClick={handleSave}
-                    >
+                    <button className="btn btn-success" onClick={handleSave}>
                       <i className="bi bi-check-circle me-2"></i>Save Changes
                     </button>
                     <button
@@ -577,7 +676,9 @@ export default function Profile() {
               <div className="section-body">
                 {/* Preferred Language */}
                 <div className="form-section">
-                  <label className="form-label fw-bold">Preferred Language</label>
+                  <label className="form-label fw-bold">
+                    Preferred Language
+                  </label>
                   {isEditMode ? (
                     <select
                       name="preferredLanguage"
@@ -617,11 +718,16 @@ export default function Profile() {
                     <div className="interests-display">
                       {profileData.interests ? (
                         <div>
-                          {profileData.interests.split(",").map((interest, index) => (
-                            <span key={index} className="badge bg-info me-2 mb-2">
-                              {interest.trim()}
-                            </span>
-                          ))}
+                          {profileData.interests
+                            .split(",")
+                            .map((interest, index) => (
+                              <span
+                                key={index}
+                                className="badge bg-info me-2 mb-2"
+                              >
+                                {interest.trim()}
+                              </span>
+                            ))}
                         </div>
                       ) : (
                         <p className="text-muted">No interests added</p>
@@ -652,10 +758,15 @@ export default function Profile() {
                             checked={profileData.darkMode}
                             onChange={handleInputChange}
                           />
-                          <label className="form-check-label" htmlFor="darkMode"></label>
+                          <label
+                            className="form-check-label"
+                            htmlFor="darkMode"
+                          ></label>
                         </div>
                       ) : (
-                        <span className={`badge ${profileData.darkMode ? "bg-dark" : "bg-light"}`}>
+                        <span
+                          className={`badge ${profileData.darkMode ? "bg-dark" : "bg-light"}`}
+                        >
                           {profileData.darkMode ? "ON" : "OFF"}
                         </span>
                       )}
@@ -678,7 +789,9 @@ export default function Profile() {
                           value={profileData.fontSize}
                           onChange={handleInputChange}
                         />
-                        <span className="badge bg-secondary">{profileData.fontSize}px</span>
+                        <span className="badge bg-secondary">
+                          {profileData.fontSize}px
+                        </span>
                       </div>
                     ) : (
                       <input
@@ -694,10 +807,7 @@ export default function Profile() {
                 {/* Action Buttons */}
                 {isEditMode && (
                   <div className="action-buttons">
-                    <button
-                      className="btn btn-success"
-                      onClick={handleSave}
-                    >
+                    <button className="btn btn-success" onClick={handleSave}>
                       <i className="bi bi-check-circle me-2"></i>Save Changes
                     </button>
                     <button
@@ -729,7 +839,7 @@ export default function Profile() {
                   </h5>
                   {enrolledCourses.length > 0 ? (
                     <div className="row">
-                      {enrolledCourses.map(course => (
+                      {enrolledCourses.map((course) => (
                         <div key={course.id} className="col-md-6 mb-3">
                           <div className="card course-card">
                             <div className="card-body">
@@ -747,8 +857,12 @@ export default function Profile() {
                               <p className="mb-0 text-muted">
                                 <small>{course.progress}% Complete</small>
                               </p>
-                              <span className={`badge ${course.status === "completed" ? "bg-success" : "bg-info"}`}>
-                                {course.status === "completed" ? "Completed" : "In Progress"}
+                              <span
+                                className={`badge ${course.status === "completed" ? "bg-success" : "bg-info"}`}
+                              >
+                                {course.status === "completed"
+                                  ? "Completed"
+                                  : "In Progress"}
                               </span>
                             </div>
                           </div>
@@ -767,14 +881,21 @@ export default function Profile() {
                   </h5>
                   {certificates.length > 0 ? (
                     <div className="row">
-                      {certificates.map(cert => (
+                      {certificates.map((cert) => (
                         <div key={cert.id} className="col-md-6 mb-3">
                           <div className="card certificate-card">
                             <div className="card-body text-center">
                               <i className="bi bi-award display-4 text-warning"></i>
-                              <h6 className="card-title mt-2">{cert.courseName}</h6>
+                              <h6 className="card-title mt-2">
+                                {cert.courseName}
+                              </h6>
                               <p className="text-muted mb-2">
-                                <small>Completed: {new Date(cert.completedDate).toLocaleDateString()}</small>
+                                <small>
+                                  Completed:{" "}
+                                  {new Date(
+                                    cert.completedDate,
+                                  ).toLocaleDateString()}
+                                </small>
                               </p>
                               <button className="btn btn-sm btn-outline-primary">
                                 <i className="bi bi-download me-1"></i>Download
@@ -800,7 +921,13 @@ export default function Profile() {
                       <div className="stat-label">Enrolled Courses</div>
                     </div>
                     <div className="stat-card">
-                      <div className="stat-value">{enrolledCourses.filter(c => c.status === "completed").length}</div>
+                      <div className="stat-value">
+                        {
+                          enrolledCourses.filter(
+                            (c) => c.status === "completed",
+                          ).length
+                        }
+                      </div>
                       <div className="stat-label">Completed</div>
                     </div>
                     <div className="stat-card">
@@ -809,7 +936,13 @@ export default function Profile() {
                     </div>
                     <div className="stat-card">
                       <div className="stat-value">
-                        {Math.round(enrolledCourses.reduce((sum, c) => sum + c.progress, 0) / enrolledCourses.length) || 0}%
+                        {Math.round(
+                          enrolledCourses.reduce(
+                            (sum, c) => sum + c.progress,
+                            0,
+                          ) / enrolledCourses.length,
+                        ) || 0}
+                        %
                       </div>
                       <div className="stat-label">Avg Progress</div>
                     </div>

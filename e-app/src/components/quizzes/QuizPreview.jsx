@@ -1,12 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
+// QuizPreview - preview all quiz questions before publishing, with edit capability
 const QuizPreview = ({ quiz, onBack, onUpdate }) => {
+  // Track which question is currently being displayed
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  // Track if currently editing a question
   const [isEditing, setIsEditing] = useState(false);
+  // Store question data being edited
   const [editedQuestion, setEditedQuestion] = useState(null);
 
   // Safety check for quiz and questions
-  if (!quiz || !quiz.questions || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
+  if (
+    !quiz ||
+    !quiz.questions ||
+    !Array.isArray(quiz.questions) ||
+    quiz.questions.length === 0
+  ) {
     return (
       <div className="text-center py-5">
         <i className="bi bi-exclamation-triangle display-4 text-warning mb-3"></i>
@@ -18,7 +27,13 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
     );
   }
 
-  const currentQuestion = quiz.questions[currentQuestionIndex];
+  const rawQuestion = quiz.questions[currentQuestionIndex];
+  // Normalize legacy/backend field names — show questionText preferentially, fall back to `question`
+  const currentQuestion = {
+    ...rawQuestion,
+    questionText: rawQuestion.questionText ?? rawQuestion.question ?? "",
+    options: Array.isArray(rawQuestion.options) ? rawQuestion.options : [],
+  };
 
   const handlePrev = () => {
     if (currentQuestionIndex > 0) {
@@ -52,7 +67,7 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
     updatedQuestions[currentQuestionIndex] = editedQuestion;
     const updatedQuiz = {
       ...quiz,
-      questions: updatedQuestions
+      questions: updatedQuestions,
     };
     onUpdate(updatedQuiz);
     setIsEditing(false);
@@ -69,14 +84,14 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
     updatedOptions[index] = value;
     setEditedQuestion({
       ...editedQuestion,
-      options: updatedOptions
+      options: updatedOptions,
     });
   };
 
   const handleCorrectAnswerChange = (value) => {
     setEditedQuestion({
       ...editedQuestion,
-      correctAnswer: value
+      correctAnswer: value,
     });
   };
 
@@ -103,8 +118,8 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
                     key={index}
                     className={`btn ${
                       index === currentQuestionIndex
-                        ? 'btn-primary'
-                        : 'btn-outline-primary'
+                        ? "btn-primary"
+                        : "btn-outline-primary"
                     }`}
                     onClick={() => handleQuestionClick(index)}
                   >
@@ -120,9 +135,14 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
         <div className="col-md-9">
           <div className="card shadow border-0">
             <div className="card-header bg-light d-flex justify-content-between align-items-center">
-              <h6 className="mb-0">Question {currentQuestionIndex + 1} of {quiz.questions.length}</h6>
+              <h6 className="mb-0">
+                Question {currentQuestionIndex + 1} of {quiz.questions.length}
+              </h6>
               {!isEditing && (
-                <button className="btn btn-sm btn-outline-primary" onClick={handleEdit}>
+                <button
+                  className="btn btn-sm btn-outline-primary"
+                  onClick={handleEdit}
+                >
                   <i className="bi bi-pencil me-1"></i>Edit
                 </button>
               )}
@@ -136,35 +156,45 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
                       className="form-control"
                       rows="3"
                       value={editedQuestion.questionText}
-                      onChange={(e) => setEditedQuestion({
-                        ...editedQuestion,
-                        questionText: e.target.value
-                      })}
+                      onChange={(e) =>
+                        setEditedQuestion({
+                          ...editedQuestion,
+                          questionText: e.target.value,
+                        })
+                      }
                     />
                   </div>
 
-                  <div className="mb-3">
-                    <label className="form-label fw-bold">Options</label>
-                    {editedQuestion.options.map((option, index) => (
-                      <div key={index} className="input-group mb-2">
-                        <span className="input-group-text">{String.fromCharCode(65 + index)}</span>
-                        <input
-                          type="text"
-                          className="form-control"
-                          value={option}
-                          onChange={(e) => handleOptionChange(index, e.target.value)}
-                        />
-                      </div>
-                    ))}
-                  </div>
+                  {editedQuestion.type !== "text" && (
+                    <div className="mb-3">
+                      <label className="form-label fw-bold">Options</label>
+                      {editedQuestion.options.map((option, index) => (
+                        <div key={index} className="input-group mb-2">
+                          <span className="input-group-text">
+                            {String.fromCharCode(65 + index)}
+                          </span>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={option}
+                            onChange={(e) =>
+                              handleOptionChange(index, e.target.value)
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="mb-3">
                     <label className="form-label fw-bold">Correct Answer</label>
-                    {editedQuestion.type === 'single' ? (
+                    {editedQuestion.type === "single" ? (
                       <select
                         className="form-select"
                         value={editedQuestion.correctAnswer}
-                        onChange={(e) => handleCorrectAnswerChange(e.target.value)}
+                        onChange={(e) =>
+                          handleCorrectAnswerChange(e.target.value)
+                        }
                       >
                         <option value="">Select correct answer</option>
                         {editedQuestion.options.map((option, index) => (
@@ -173,6 +203,16 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
                           </option>
                         ))}
                       </select>
+                    ) : editedQuestion.type === "text" ? (
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Enter accepted keyword/answer"
+                        value={editedQuestion.correctAnswer || ""}
+                        onChange={(e) =>
+                          handleCorrectAnswerChange(e.target.value)
+                        }
+                      />
                     ) : (
                       <div>
                         {editedQuestion.options.map((option, index) => (
@@ -180,11 +220,16 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
                             <input
                               className="form-check-input"
                               type="checkbox"
-                              checked={editedQuestion.correctAnswer.includes(option)}
+                              checked={editedQuestion.correctAnswer.includes(
+                                option,
+                              )}
                               onChange={(e) => {
-                                const newCorrect = editedQuestion.correctAnswer.includes(option)
-                                  ? editedQuestion.correctAnswer.filter(ans => ans !== option)
-                                  : [...editedQuestion.correctAnswer, option];
+                                const newCorrect =
+                                  editedQuestion.correctAnswer.includes(option)
+                                    ? editedQuestion.correctAnswer.filter(
+                                        (ans) => ans !== option,
+                                      )
+                                    : [...editedQuestion.correctAnswer, option];
                                 handleCorrectAnswerChange(newCorrect);
                               }}
                             />
@@ -198,10 +243,16 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
                   </div>
 
                   <div className="d-flex gap-2">
-                    <button className="btn btn-success" onClick={handleSaveEdit}>
+                    <button
+                      className="btn btn-success"
+                      onClick={handleSaveEdit}
+                    >
                       <i className="bi bi-check me-1"></i>Save Changes
                     </button>
-                    <button className="btn btn-secondary" onClick={handleCancelEdit}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleCancelEdit}
+                    >
                       <i className="bi bi-x me-1"></i>Cancel
                     </button>
                   </div>
@@ -211,25 +262,45 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
                   <h5 className="mb-4">{currentQuestion.questionText}</h5>
 
                   <div className="mb-4">
-                    {currentQuestion.options.map((option, index) => (
-                      <div
-                        key={index}
-                        className={`p-3 mb-2 rounded border ${
-                          currentQuestion.correctAnswer === option ||
-                          (Array.isArray(currentQuestion.correctAnswer) &&
-                           currentQuestion.correctAnswer.includes(option))
-                            ? 'bg-success bg-opacity-10 border-success'
-                            : 'bg-light'
-                        }`}
-                      >
-                        <strong>{String.fromCharCode(65 + index)})</strong> {option}
-                        {(currentQuestion.correctAnswer === option ||
-                          (Array.isArray(currentQuestion.correctAnswer) &&
-                           currentQuestion.correctAnswer.includes(option))) && (
-                          <i className="bi bi-check-circle text-success ms-2"></i>
-                        )}
+                    {currentQuestion.type === "text" ? (
+                      <div>
+                        <input
+                          type="text"
+                          className="form-control mb-2"
+                          placeholder="Student will type their answer here"
+                          disabled
+                        />
+                        <div className="p-2 bg-light border-start border-primary border-4 rounded small">
+                          <strong>Accepted Answer:</strong>{" "}
+                          {currentQuestion.correctAnswer || (
+                            <em className="text-muted">Not set</em>
+                          )}
+                        </div>
                       </div>
-                    ))}
+                    ) : (
+                      currentQuestion.options.map((option, index) => (
+                        <div
+                          key={index}
+                          className={`p-3 mb-2 rounded border ${
+                            currentQuestion.correctAnswer === option ||
+                            (Array.isArray(currentQuestion.correctAnswer) &&
+                              currentQuestion.correctAnswer.includes(option))
+                              ? "bg-success bg-opacity-10 border-success"
+                              : "bg-light"
+                          }`}
+                        >
+                          <strong>{String.fromCharCode(65 + index)})</strong>{" "}
+                          {option}
+                          {(currentQuestion.correctAnswer === option ||
+                            (Array.isArray(currentQuestion.correctAnswer) &&
+                              currentQuestion.correctAnswer.includes(
+                                option,
+                              ))) && (
+                            <i className="bi bi-check-circle text-success ms-2"></i>
+                          )}
+                        </div>
+                      ))
+                    )}
                   </div>
 
                   <div className="d-flex justify-content-between">
@@ -243,7 +314,9 @@ const QuizPreview = ({ quiz, onBack, onUpdate }) => {
                     <button
                       className="btn btn-outline-primary"
                       onClick={handleNext}
-                      disabled={currentQuestionIndex === quiz.questions.length - 1}
+                      disabled={
+                        currentQuestionIndex === quiz.questions.length - 1
+                      }
                     >
                       Next<i className="bi bi-chevron-right ms-1"></i>
                     </button>

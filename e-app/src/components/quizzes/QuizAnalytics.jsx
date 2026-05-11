@@ -1,31 +1,58 @@
-import React from 'react';
+import React from "react";
 
-const QuizAnalytics = ({ quizzes, courses, quizAttempts = [] }) => {
+// QuizAnalytics - show instructor statistics for all quizzes (scores, pass rates, student attempts)
+const QuizAnalytics = ({ quizzes, courses, quizAttempts = [], users = [] }) => {
   // Safety checks - ensure data is always arrays
   const safeQuizzes = Array.isArray(quizzes) ? quizzes : [];
   const safeCourses = Array.isArray(courses) ? courses : [];
   const safeQuizAttempts = Array.isArray(quizAttempts) ? quizAttempts : [];
+  const safeUsers = Array.isArray(users) ? users : [];
 
-  // Calculate real analytics from quiz attempts
-  const analytics = safeQuizzes.map(quiz => {
-    const quizAttemptsForThisQuiz = safeQuizAttempts.filter(attempt => attempt.quizId === quiz.id);
+  const lookupStudentName = (studentId) => {
+    const matched = safeUsers.find(
+      (u) => u.id === studentId || u._id === studentId,
+    );
+    return matched?.name || "Unknown Student";
+  };
+
+  // Calculate analytics for each quiz
+  const analytics = safeQuizzes.map((quiz) => {
+    // Get all attempts for this quiz
+    const quizAttemptsForThisQuiz = safeQuizAttempts.filter(
+      (attempt) => attempt.quizId === quiz.id,
+    );
+    // Count total number of attempts
     const totalAttempts = quizAttemptsForThisQuiz.length;
-    const uniqueStudents = new Set(quizAttemptsForThisQuiz.map(a => a.studentId)).size;
-    
-    // Calculate average score
-    const averageScore = totalAttempts > 0 
-      ? Math.round(quizAttemptsForThisQuiz.reduce((sum, attempt) => sum + attempt.score, 0) / totalAttempts)
-      : 0;
-    
-    // Calculate pass rate
-    const passRate = totalAttempts > 0
-      ? Math.round((quizAttemptsForThisQuiz.filter(attempt => {
-          if (quiz.hasPassingPercentage && quiz.passingPercentage) {
-            return attempt.score >= quiz.passingPercentage;
-          }
-          return attempt.score >= 70; // Default passing score
-        }).length / totalAttempts) * 100)
-      : 0;
+    // Count unique students who took this quiz
+    const uniqueStudents = new Set(
+      quizAttemptsForThisQuiz.map((a) => a.studentId),
+    ).size;
+
+    // Calculate average score across all attempts
+    const averageScore =
+      totalAttempts > 0
+        ? Math.round(
+            quizAttemptsForThisQuiz.reduce(
+              (sum, attempt) => sum + attempt.score,
+              0,
+            ) / totalAttempts,
+          )
+        : 0;
+
+    // Calculate percentage of students who passed
+    const passRate =
+      totalAttempts > 0
+        ? Math.round(
+            (quizAttemptsForThisQuiz.filter((attempt) => {
+              if (quiz.hasPassingPercentage && quiz.passingPercentage) {
+                return attempt.score >= quiz.passingPercentage;
+              }
+              return attempt.score >= 70; // Default passing score
+            }).length /
+              totalAttempts) *
+              100,
+          )
+        : 0;
 
     return {
       ...quiz,
@@ -33,13 +60,15 @@ const QuizAnalytics = ({ quizzes, courses, quizAttempts = [] }) => {
       averageScore,
       passRate,
       uniqueStudents,
-      attempts: quizAttemptsForThisQuiz.map(attempt => ({
+      attempts: quizAttemptsForThisQuiz.map((attempt) => ({
         studentId: attempt.studentId,
-        studentName: `Student ${attempt.studentId}`, // In real app, get from user data
+        studentName: lookupStudentName(attempt.studentId),
         score: attempt.score,
-        attempts: safeQuizAttempts.filter(a => a.quizId === quiz.id && a.studentId === attempt.studentId).length,
-        completedAt: attempt.completedAt
-      }))
+        attempts: safeQuizAttempts.filter(
+          (a) => a.quizId === quiz.id && a.studentId === attempt.studentId,
+        ).length,
+        completedAt: attempt.completedAt,
+      })),
     };
   });
 
@@ -51,11 +80,13 @@ const QuizAnalytics = ({ quizzes, courses, quizAttempts = [] }) => {
         <div className="text-center py-5">
           <i className="bi bi-bar-chart display-4 text-muted mb-3"></i>
           <h5 className="text-muted">No analytics available</h5>
-          <p className="text-muted">Publish quizzes and wait for student attempts to see analytics</p>
+          <p className="text-muted">
+            Publish quizzes and wait for student attempts to see analytics
+          </p>
         </div>
       ) : (
         <div className="row">
-          {analytics.map(quiz => (
+          {analytics.map((quiz) => (
             <div key={quiz.id} className="col-12 mb-4">
               <div className="card shadow border-0">
                 <div className="card-header bg-primary text-white">
@@ -66,25 +97,33 @@ const QuizAnalytics = ({ quizzes, courses, quizAttempts = [] }) => {
                   <div className="row mb-4">
                     <div className="col-md-3">
                       <div className="text-center">
-                        <div className="display-6 fw-bold text-primary">{quiz.totalAttempts}</div>
+                        <div className="display-6 fw-bold text-primary">
+                          {quiz.totalAttempts}
+                        </div>
                         <small className="text-muted">Total Attempts</small>
                       </div>
                     </div>
                     <div className="col-md-3">
                       <div className="text-center">
-                        <div className="display-6 fw-bold text-success">{quiz.averageScore}%</div>
+                        <div className="display-6 fw-bold text-success">
+                          {quiz.averageScore}%
+                        </div>
                         <small className="text-muted">Average Score</small>
                       </div>
                     </div>
                     <div className="col-md-3">
                       <div className="text-center">
-                        <div className="display-6 fw-bold text-info">{quiz.passRate}%</div>
+                        <div className="display-6 fw-bold text-info">
+                          {quiz.passRate}%
+                        </div>
                         <small className="text-muted">Pass Rate</small>
                       </div>
                     </div>
                     <div className="col-md-3">
                       <div className="text-center">
-                        <div className="display-6 fw-bold text-warning">{quiz.uniqueStudents}</div>
+                        <div className="display-6 fw-bold text-warning">
+                          {quiz.uniqueStudents}
+                        </div>
                         <small className="text-muted">Unique Students</small>
                       </div>
                     </div>
@@ -113,22 +152,47 @@ const QuizAnalytics = ({ quizzes, courses, quizAttempts = [] }) => {
                             <tr key={index}>
                               <td>{attempt.studentName}</td>
                               <td>
-                                <span className={`badge ${
-                                  attempt.score >= (quiz.hasPassingPercentage && quiz.passingPercentage ? quiz.passingPercentage : 70)
-                                    ? 'bg-success' :
-                                  attempt.score >= 50 ? 'bg-warning' : 'bg-danger'
-                                }`}>
+                                <span
+                                  className={`badge ${
+                                    attempt.score >=
+                                    (quiz.hasPassingPercentage &&
+                                    quiz.passingPercentage
+                                      ? quiz.passingPercentage
+                                      : 70)
+                                      ? "bg-success"
+                                      : attempt.score >= 50
+                                        ? "bg-warning"
+                                        : "bg-danger"
+                                  }`}
+                                >
                                   {attempt.score}%
                                 </span>
                               </td>
                               <td>{attempt.attempts}</td>
-                              <td>{new Date(attempt.completedAt).toLocaleDateString()}</td>
                               <td>
-                                <span className={`badge ${
-                                  attempt.score >= (quiz.hasPassingPercentage && quiz.passingPercentage ? quiz.passingPercentage : 70)
-                                    ? 'bg-success' : 'bg-danger'
-                                }`}>
-                                  {attempt.score >= (quiz.hasPassingPercentage && quiz.passingPercentage ? quiz.passingPercentage : 70) ? 'Passed' : 'Failed'}
+                                {new Date(
+                                  attempt.completedAt,
+                                ).toLocaleDateString()}
+                              </td>
+                              <td>
+                                <span
+                                  className={`badge ${
+                                    attempt.score >=
+                                    (quiz.hasPassingPercentage &&
+                                    quiz.passingPercentage
+                                      ? quiz.passingPercentage
+                                      : 70)
+                                      ? "bg-success"
+                                      : "bg-danger"
+                                  }`}
+                                >
+                                  {attempt.score >=
+                                  (quiz.hasPassingPercentage &&
+                                  quiz.passingPercentage
+                                    ? quiz.passingPercentage
+                                    : 70)
+                                    ? "Passed"
+                                    : "Failed"}
                                 </span>
                               </td>
                             </tr>

@@ -1,15 +1,18 @@
-
 import { useState } from "react";
 import Micro from "./Micro";
 
-
+// ChatBot component - floating chat widget for user support
 export function ChatBot() {
+  // Track if chat window is open/closed
   const [open, setOpen] = useState(false);
+  // Store user's current message input
   const [message, setMessage] = useState("");
+  // Store all messages in conversation (user and bot)
   const [messages, setMessages] = useState([
     { from: "bot", text: "Hi! How can I help you?" },
   ]);
 
+  // Send message from user
   const sendMessage = () => {
     if (!message.trim()) return;
     setMessages([...messages, { from: "user", text: message }]);
@@ -52,14 +55,23 @@ export function ChatBot() {
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             />
-            <button style={{borderRadius:"30px" ,borderWidth:"1px",backgroundColor:"white",padding:"5px"}}><Micro /></button>
-            
-            <button style={styles.sendBtn} onClick={sendMessage}> →
+            <button
+              style={{
+                borderRadius: "30px",
+                borderWidth: "1px",
+                backgroundColor: "white",
+                padding: "5px",
+              }}
+            >
+              <Micro />
             </button>
-            
+
+            <button style={styles.sendBtn} onClick={sendMessage}>
+              {" "}
+              →
+            </button>
           </div>
         </div>
-
       )}
     </div>
   );
@@ -128,20 +140,16 @@ const styles = {
     border: "none",
     padding: 8,
     outline: "none",
-    borderRadius:"25px"
-
+    borderRadius: "25px",
   },
 
-sendBtn: {
-  fontsize: "30px",
-  padding: "5px",
-  border: "1px",
-  borderRadius: "50%",
-  backgroundColor: "green",
-  color:" #fff",
-  
-}
-
+  sendBtn: {
+    fontsize: "30px",
+    padding: "5px",
+    border: "1px",
+    borderRadius: "50%",
+    backgroundColor: "green",
+    color: " #fff",
+  },
 };
-export default ChatBot
-
+export default ChatBot;

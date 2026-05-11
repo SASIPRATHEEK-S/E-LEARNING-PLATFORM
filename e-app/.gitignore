@@ -7,16 +7,48 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.pnpm-store/
+
+# Build output
 dist
 dist-ssr
+build
 *.local
+
+# Environment / Secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Certificates / private keys / credentials
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets.json
+credentials.json
+.npmrc
+.netrc
+
+# Cache
+.vite
+.cache
+.eslintcache
+
+# Coverage
+coverage
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj

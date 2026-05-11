@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from "react";
+import { useToast } from "../../context/ToastContext";
 
-export default function CoursePlayer({ course, onBack, onEnroll, isEnrolled, onTopicComplete, onUpdateLastActive }) {
+// CoursePlayer - main player to watch course videos and mark topics as complete
+export default function CoursePlayer({
+  course,
+  onBack,
+  onEnroll,
+  isEnrolled,
+  onTopicComplete,
+  onUpdateLastActive,
+}) {
+  const toast = useToast();
+  // Track which video is currently playing
   const [currentVideo, setCurrentVideo] = useState(course.content?.[0] || null);
+  // Track which topics student has marked as complete
   const [completedTopics, setCompletedTopics] = useState(new Set());
 
   // Update lastActive when course is opened
@@ -13,24 +25,28 @@ export default function CoursePlayer({ course, onBack, onEnroll, isEnrolled, onT
 
   const getEmbedUrl = (url) => {
     if (!url) return "";
-    
+
     // Handle various YouTube URL formats
-    const youtubeRegex = /^(?:(?:https?:)?\/\/)?(?:www\.)?(?:m\.)?(?:youtube\.com|youtu\.be)\/?(?:watch\?v=|embed\/|v\/|shorts\/)?([a-zA-Z0-9_-]{11})/;
+    const youtubeRegex =
+      /^(?:(?:https?:)?\/\/)?(?:www\.)?(?:m\.)?(?:youtube\.com|youtu\.be)\/?(?:watch\?v=|embed\/|v\/|shorts\/)?([a-zA-Z0-9_-]{11})/;
     const match = url.match(youtubeRegex);
-    
+
     if (match && match[1]) {
       return `https://www.youtube.com/embed/${match[1]}`;
     }
-    
+
     // If it's already an embed URL, return as is
     if (url.includes("youtube.com/embed/")) {
       return url;
     }
-    
+
     // For other URLs, try the original regex
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const regExp =
+      /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const oldMatch = url.match(regExp);
-    return oldMatch && oldMatch[2].length === 11 ? `https://www.youtube.com/embed/${oldMatch[2]}` : url;
+    return oldMatch && oldMatch[2].length === 11
+      ? `https://www.youtube.com/embed/${oldMatch[2]}`
+      : url;
   };
 
   const handleTopicClick = (item) => {
@@ -39,7 +55,9 @@ export default function CoursePlayer({ course, onBack, onEnroll, isEnrolled, onT
 
   const handleMarkComplete = () => {
     if (!isEnrolled) {
-      alert("Please enroll in the course to track and update progress.");
+      toast.warning(
+        "Please enroll in the course to track and update progress.",
+      );
       return;
     }
 
@@ -60,12 +78,18 @@ export default function CoursePlayer({ course, onBack, onEnroll, isEnrolled, onT
 
   const totalTopics = course.content?.length || 0;
   const completedCount = completedTopics.size;
-  const progressPercent = totalTopics ? Math.round((completedCount / totalTopics) * 100) : 0;
-  const shouldShowProgress = isEnrolled && typeof onTopicComplete === "function";
+  const progressPercent = totalTopics
+    ? Math.round((completedCount / totalTopics) * 100)
+    : 0;
+  const shouldShowProgress =
+    isEnrolled && typeof onTopicComplete === "function";
 
   return (
     <div className="container-fluid p-0">
-      <button className="btn btn-link text-decoration-none mb-3 ps-0" onClick={onBack}>
+      <button
+        className="btn btn-link text-decoration-none mb-3 ps-0"
+        onClick={onBack}
+      >
         <i className="bi bi-arrow-left me-2"></i> Back to Courses
       </button>
 
@@ -73,7 +97,11 @@ export default function CoursePlayer({ course, onBack, onEnroll, isEnrolled, onT
         <div className="col-lg-8">
           <div className="ratio ratio-16x9 shadow-sm rounded overflow-hidden bg-black">
             {currentVideo ? (
-              <iframe src={getEmbedUrl(currentVideo.videoUrl)} title={currentVideo.topic} allowFullScreen></iframe>
+              <iframe
+                src={getEmbedUrl(currentVideo.videoUrl)}
+                title={currentVideo.topic}
+                allowFullScreen
+              ></iframe>
             ) : (
               <div className="d-flex align-items-center justify-content-center text-white">
                 <p>No video available for this course.</p>
@@ -88,31 +116,52 @@ export default function CoursePlayer({ course, onBack, onEnroll, isEnrolled, onT
             {shouldShowProgress ? (
               <>
                 <strong>Topic Progress:</strong> {progressPercent}%
-                <div className="progress mt-2" style={{ height: '8px' }}>
-                  <div className="progress-bar bg-success" role="progressbar" style={{ width: `${progressPercent}%` }} aria-valuenow={progressPercent} aria-valuemin="0" aria-valuemax="100"></div>
+                <div className="progress mt-2" style={{ height: "8px" }}>
+                  <div
+                    className="progress-bar bg-success"
+                    role="progressbar"
+                    style={{ width: `${progressPercent}%` }}
+                    aria-valuenow={progressPercent}
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                  ></div>
                 </div>
-                <small className="text-muted">{completedCount}/{totalTopics} topics completed</small>
+                <small className="text-muted">
+                  {completedCount}/{totalTopics} topics completed
+                </small>
               </>
             ) : (
-              <p className="text-muted mb-0">Progress tracking available after enrolling.</p>
+              <p className="text-muted mb-0">
+                Progress tracking available after enrolling.
+              </p>
             )}
           </div>
 
-          {onEnroll && (
-            isEnrolled ? (
+          {onEnroll &&
+            (isEnrolled ? (
               <button className="btn btn-success btn-lg w-100" disabled>
                 <i className="bi bi-check-circle me-2"></i>Enrolled
               </button>
             ) : (
-              <button className="btn btn-primary btn-lg w-100" onClick={() => { onEnroll(course.id); alert('Successfully enrolled in ' + course.title); }}>
+              <button
+                className="btn btn-primary btn-lg w-100"
+                onClick={() => {
+                  onEnroll(course.id);
+                  toast.success("Successfully enrolled in " + course.title);
+                }}
+              >
                 <i className="bi bi-person-plus me-2"></i>Enroll Now
               </button>
-            )
-          )}
+            ))}
 
           <div className="mt-3">
-            <button className="btn btn-outline-success w-100" onClick={handleMarkComplete} disabled={!currentVideo}>
-              <i className="bi bi-check2-all me-2"></i>Mark Current Topic Complete
+            <button
+              className="btn btn-outline-success w-100"
+              onClick={handleMarkComplete}
+              disabled={!currentVideo}
+            >
+              <i className="bi bi-check2-all me-2"></i>Mark Current Topic
+              Complete
             </button>
           </div>
         </div>
@@ -122,21 +171,28 @@ export default function CoursePlayer({ course, onBack, onEnroll, isEnrolled, onT
             <div className="card-header bg-white py-3">
               <h5 className="mb-0 fw-bold">Course Content</h5>
             </div>
-            <div className="list-group list-group-flush overflow-auto" style={{ maxHeight: '450px' }}>
+            <div
+              className="list-group list-group-flush overflow-auto"
+              style={{ maxHeight: "450px" }}
+            >
               {course.content?.map((item, index) => (
                 <button
                   key={index}
-                  className={`list-group-item list-group-item-action py-3 border-start border-4 d-flex justify-content-between align-items-center ${currentVideo?.topic === item.topic ? 'border-primary bg-light fw-bold' : 'border-transparent'}`}
+                  className={`list-group-item list-group-item-action py-3 border-start border-4 d-flex justify-content-between align-items-center ${currentVideo?.topic === item.topic ? "border-primary bg-light fw-bold" : "border-transparent"}`}
                   onClick={() => handleTopicClick(item)}
                 >
                   <div className="d-flex align-items-center">
-                    <i className={`bi ${currentVideo?.topic === item.topic ? 'bi-play-circle-fill text-primary' : 'bi-play-circle text-muted'} me-3 fs-5`}></i>
+                    <i
+                      className={`bi ${currentVideo?.topic === item.topic ? "bi-play-circle-fill text-primary" : "bi-play-circle text-muted"} me-3 fs-5`}
+                    ></i>
                     <span>{item.topic}</span>
                   </div>
                   {completedTopics.has(item.topic) ? (
                     <i className="bi bi-check2-all text-success fs-5"></i>
+                  ) : isEnrolled ? (
+                    <i className="bi bi-clock text-secondary"></i>
                   ) : (
-                    isEnrolled ? <i className="bi bi-clock text-secondary"></i> : <i className="bi bi-lock-fill text-muted"></i>
+                    <i className="bi bi-lock-fill text-muted"></i>
                   )}
                 </button>
               ))}

@@ -1,97 +1,221 @@
 import { createContext, useReducer, useEffect, useContext } from "react";
 import { authReducer, initialAuthState } from "./authReducer";
 
+const API_BASE = "http://localhost:5000/api";
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [state, dispatch] = useReducer(authReducer, initialAuthState, () => {
-    const savedAuth = localStorage.getItem("APP_AUTH");
-    const auth = savedAuth ? JSON.parse(savedAuth) : { isAuthenticated: false, user: null, error: null };
-    return auth;
-  });
+  const [state, dispatch] = useReducer(authReducer, initialAuthState);
 
   useEffect(() => {
-    localStorage.setItem("APP_AUTH", JSON.stringify({
-      isAuthenticated: state.isAuthenticated,
-      user: state.user,
-      error: state.error,
-    }));
-  }, [state]);
+    loadCurrentUser();
+  }, []);
 
-  const getUsers = () => {
-    const users = localStorage.getItem("APP_USERS");
-    return users ? JSON.parse(users) : [];
+  const loadCurrentUser = async () => {
+    dispatch({ type: "SET_LOADING", payload: true });
+    try {
+      const response = await fetch(`${API_BASE}/auth/me`, {
+        method: "GET",
+        credentials: "include",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        dispatch({ type: "LOGIN", payload: { user: data } });
+        if (data.role === "admin" || data.role === "instructor") {
+          await fetchUsers();
+        }
+      } else {
+        dispatch({ type: "LOGOUT" });
+      }
+    } catch (error) {
+      dispatch({ type: "LOGOUT" });
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: false });
+    }
   };
 
-  const saveUsers = (users) => {
-    localStorage.setItem("APP_USERS", JSON.stringify(users));
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/users`, {
+        method: "GET",
+        credentials: "include",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        dispatch({ type: "SET_USERS", payload: data });
+        return data;
+      }
+    } catch (error) {
+      console.error("Failed to fetch users", error);
+    }
+    return [];
   };
 
-  const signup = async (data) => {
-    if (data.password !== data.confirmPassword) {
-      dispatch({ type: "SET_ERROR", payload: "Passwords do not match" });
+  const sendOTP = async (data) => {
+    dispatch({ type: "SET_LOADING", payload: true });
+    try {
+      const response = await fetch(`${API_BASE}/auth/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        dispatch({ type: "SET_MESSAGE", payload: result.message });
+        return true;
+      }
+      dispatch({ type: "SET_ERROR", payload: result.message });
       return false;
-    }
-    const users = getUsers();
-    const existingUser = users.find(user => user.email === data.email);
-    if (existingUser) {
-      dispatch({ type: "SET_ERROR", payload: "User already exists" });
+    } catch (error) {
+      dispatch({ type: "SET_ERROR", payload: "Network error" });
       return false;
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: false });
     }
-    const newUser = { ...data, id: Date.now() };
-    delete newUser.confirmPassword;
-    users.push(newUser);
-    saveUsers(users);
-    dispatch({ type: "SIGNUP", payload: { user: newUser } });
-    return true;
+  };
+
+  const verifyOTP = async (data) => {
+    dispatch({ type: "SET_LOADING", payload: true });
+    try {
+      const response = await fetch(`${API_BASE}/auth/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        dispatch({ type: "LOGIN", payload: { user: result.user } });
+        if (result.user.role === "admin" || result.user.role === "instructor") {
+          await fetchUsers();
+        }
+        return result.user;
+      }
+      dispatch({ type: "SET_ERROR", payload: result.message });
+      return null;
+    } catch (error) {
+      dispatch({ type: "SET_ERROR", payload: "Network error" });
+      return null;
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: false });
+    }
   };
 
   const login = async (data) => {
-    const users = getUsers();
-    const user = users.find(u => u.email === data.email && u.password === data.password);
-    if (!user) {
-      dispatch({ type: "SET_ERROR", payload: "Invalid email or password" });
-      return false;
-    }
-    dispatch({ type: "LOGIN", payload: { user } });
-    return true;
-  };
-
-  const logout = () => {
-    dispatch({ type: "LOGOUT" });
-  };
-
-  const updateUser = (userId, updates) => {
-    const users = getUsers();
-    const index = users.findIndex(u => u.id === userId);
-    if (index !== -1) {
-      users[index] = { ...users[index], ...updates };
-      saveUsers(users);
-      if (state.user && state.user.id === userId) {
-        dispatch({ type: "LOGIN", payload: { user: users[index] } });
+    dispatch({ type: "SET_LOADING", payload: true });
+    try {
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        dispatch({ type: "LOGIN", payload: { user: result.user } });
+        if (result.user.role === "admin" || result.user.role === "instructor") {
+          await fetchUsers();
+        }
+        return result.user;
       }
+      dispatch({ type: "SET_ERROR", payload: result.message });
+      return null;
+    } catch (error) {
+      dispatch({ type: "SET_ERROR", payload: "Network error" });
+      return null;
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: false });
     }
   };
 
-  const removeUser = (userId) => {
-    const users = getUsers();
-    const filteredUsers = users.filter(u => u.id !== userId);
-    saveUsers(filteredUsers);
-    if (state.user && state.user.id === userId) {
-      logout();
+  const logout = async () => {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      dispatch({ type: "LOGOUT" });
     }
   };
 
-  const updateUserProfile = (profileData) => {
-    if (state.user) {
-      const updatedUser = { ...state.user, ...profileData };
-      dispatch({ type: "LOGIN", payload: { user: updatedUser } });
-      updateUser(state.user.id, profileData);
+  const updateUserProfile = async (profileData) => {
+    dispatch({ type: "SET_LOADING", payload: true });
+    try {
+      const response = await fetch(`${API_BASE}/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(profileData),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        dispatch({ type: "LOGIN", payload: { user: result } });
+        dispatch({ type: "SET_MESSAGE", payload: "Profile updated successfully" });
+        return result;
+      }
+      dispatch({ type: "SET_ERROR", payload: result.message });
+      return null;
+    } catch (error) {
+      dispatch({ type: "SET_ERROR", payload: "Network error" });
+      return null;
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: false });
     }
+  };
+
+  const updateUser = async (userId, updateData) => {
+    try {
+      const response = await fetch(`${API_BASE}/users/${userId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(updateData),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        await fetchUsers();
+        return result;
+      }
+    } catch (error) {
+      console.error("Failed to update user", error);
+    }
+    return null;
+  };
+
+  const removeUser = async (userId) => {
+    try {
+      const response = await fetch(`${API_BASE}/users/${userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (response.ok) {
+        await fetchUsers();
+        return true;
+      }
+    } catch (error) {
+      console.error("Failed to remove user", error);
+    }
+    return false;
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, signup, login, logout, updateUser, removeUser, updateUserProfile, users: getUsers() }}>
+    <AuthContext.Provider
+      value={{
+        ...state,
+        sendOTP,
+        verifyOTP,
+        login,
+        logout,
+        updateUserProfile,
+          users: state.users,
+          updateUser,
+          removeUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

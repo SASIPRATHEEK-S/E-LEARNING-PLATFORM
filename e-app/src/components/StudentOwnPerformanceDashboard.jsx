@@ -1,88 +1,150 @@
-import React from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import React from "react";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
-const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, quizAttempts, quizzes, courseRatings = {} }) => {
-  // Calculate overall performance metrics
+// StudentOwnPerformanceDashboard - show student's own performance summary and analytics
+const StudentPerformanceDashboard = ({
+  user,
+  enrolledCourses,
+  courseProgress,
+  quizAttempts,
+  quizzes,
+  courseRatings = {},
+}) => {
+  // Calculate overall statistics
   const totalEnrolled = enrolledCourses.length;
-  const completedCourses = enrolledCourses.filter(course => (courseProgress[course.id]?.progress || 0) >= 100);
-  const inProgressCourses = enrolledCourses.filter(course => {
+  // Count courses that are 100% complete
+  const completedCourses = enrolledCourses.filter(
+    (course) => (courseProgress[course.id]?.progress || 0) >= 100,
+  );
+  // Count courses currently in progress
+  const inProgressCourses = enrolledCourses.filter((course) => {
     const progress = courseProgress[course.id]?.progress || 0;
     // Consider a course "in progress" if it has some progress OR if the student has attempted quizzes for it
-    const hasQuizAttempts = quizAttempts.some(attempt => {
-      const quiz = quizzes.find(q => q.id === attempt.quizId);
+    const hasQuizAttempts = quizAttempts.some((attempt) => {
+      const quiz = quizzes.find((q) => q.id === attempt.quizId);
       return quiz && quiz.courseId === course.id;
     });
-    return (progress > 0 && progress < 100) || (progress === 0 && hasQuizAttempts);
+    return (
+      (progress > 0 && progress < 100) || (progress === 0 && hasQuizAttempts)
+    );
   });
-  const notStartedCourses = enrolledCourses.filter(course => {
+  const notStartedCourses = enrolledCourses.filter((course) => {
     const progress = courseProgress[course.id]?.progress || 0;
-    const hasQuizAttempts = quizAttempts.some(attempt => {
-      const quiz = quizzes.find(q => q.id === attempt.quizId);
+    const hasQuizAttempts = quizAttempts.some((attempt) => {
+      const quiz = quizzes.find((q) => q.id === attempt.quizId);
       return quiz && quiz.courseId === course.id;
     });
     return progress === 0 && !hasQuizAttempts;
   });
 
   const ratingEntries = Object.values(courseRatings || []);
-  const averageCourseRating = ratingEntries.length > 0
-    ? (ratingEntries.reduce((sum, r) => sum + (r.courseRating || 0), 0) / ratingEntries.length).toFixed(1)
-    : 0;
-  const averageInstructorRating = ratingEntries.length > 0
-    ? (ratingEntries.reduce((sum, r) => sum + (r.instructorRating || 0), 0) / ratingEntries.length).toFixed(1)
-    : 0;
+  const averageCourseRating =
+    ratingEntries.length > 0
+      ? (
+          ratingEntries.reduce((sum, r) => sum + (r.courseRating || 0), 0) /
+          ratingEntries.length
+        ).toFixed(1)
+      : 0;
+  const averageInstructorRating =
+    ratingEntries.length > 0
+      ? (
+          ratingEntries.reduce((sum, r) => sum + (r.instructorRating || 0), 0) /
+          ratingEntries.length
+        ).toFixed(1)
+      : 0;
   const ratedCoursesCount = ratingEntries.length;
 
   // Calculate average quiz score
-  const userQuizAttempts = quizAttempts.filter(attempt => attempt.studentId === user.id);
-  const averageQuizScore = userQuizAttempts.length > 0
-    ? Math.round(userQuizAttempts.reduce((sum, attempt) => sum + attempt.score, 0) / userQuizAttempts.length)
-    : 0;
-
-  // Calculate overall completion percentage
-  const overallCompletion = totalEnrolled > 0
-    ? Math.round(enrolledCourses.reduce((sum, course) => sum + (courseProgress[course.id]?.progress || 0), 0) / totalEnrolled)
-    : 0;
-
-  // Course-wise performance data
-  const coursePerformanceData = enrolledCourses.map(course => {
-    const progress = courseProgress[course.id]?.progress || 0;
-    const courseQuizzes = quizzes.filter(q => q.courseId === course.id && q.published);
-    const courseAttempts = userQuizAttempts.filter(attempt => courseQuizzes.some(q => q.id === attempt.quizId));
-    const avgScore = courseAttempts.length > 0
-      ? Math.round(courseAttempts.reduce((sum, attempt) => sum + attempt.score, 0) / courseAttempts.length)
+  const userQuizAttempts = quizAttempts.filter(
+    (attempt) => attempt.studentId === user.id,
+  );
+  const averageQuizScore =
+    userQuizAttempts.length > 0
+      ? Math.round(
+          userQuizAttempts.reduce((sum, attempt) => sum + attempt.score, 0) /
+            userQuizAttempts.length,
+        )
       : 0;
 
-    let status = 'Not Started';
-    if (progress >= 100) status = 'Completed';
-    else if (progress > 0) status = 'In Progress';
+  // Calculate overall completion percentage
+  const overallCompletion =
+    totalEnrolled > 0
+      ? Math.round(
+          enrolledCourses.reduce(
+            (sum, course) => sum + (courseProgress[course.id]?.progress || 0),
+            0,
+          ) / totalEnrolled,
+        )
+      : 0;
+
+  // Course-wise performance data
+  const coursePerformanceData = enrolledCourses.map((course) => {
+    const progress = courseProgress[course.id]?.progress || 0;
+    const courseQuizzes = quizzes.filter(
+      (q) => q.courseId === course.id && q.published,
+    );
+    const courseAttempts = userQuizAttempts.filter((attempt) =>
+      courseQuizzes.some((q) => q.id === attempt.quizId),
+    );
+    const avgScore =
+      courseAttempts.length > 0
+        ? Math.round(
+            courseAttempts.reduce((sum, attempt) => sum + attempt.score, 0) /
+              courseAttempts.length,
+          )
+        : 0;
+
+    let status = "Not Started";
+    if (progress >= 100) status = "Completed";
+    else if (progress > 0) status = "In Progress";
 
     return {
       courseName: course.title,
       progress: progress,
       quizScore: avgScore,
       status: status,
-      course: course
+      course: course,
     };
   });
 
   // Quiz analytics
-  const enrolledCourseIds = enrolledCourses.map(c => c.id);
-  const assignedQuizzes = quizzes.filter(q => q.published && enrolledCourseIds.includes(q.courseId));
+  const enrolledCourseIds = enrolledCourses.map((c) => c.id);
+  const assignedQuizzes = quizzes.filter(
+    (q) => q.published && enrolledCourseIds.includes(q.courseId),
+  );
   const attemptedQuizzes = userQuizAttempts.length;
-  const highestScore = userQuizAttempts.length > 0 ? Math.max(...userQuizAttempts.map(a => a.score)) : 0;
+  const highestScore =
+    userQuizAttempts.length > 0
+      ? Math.max(...userQuizAttempts.map((a) => a.score))
+      : 0;
 
   // Quiz performance data for charts
   const quizPerformanceData = userQuizAttempts.map((attempt, index) => {
-    const quiz = quizzes.find(q => q.id === attempt.quizId);
-    const course = enrolledCourses.find(c => c.id === quiz?.courseId);
+    const quiz = quizzes.find((q) => q.id === attempt.quizId);
+    const course = enrolledCourses.find((c) => c.id === quiz?.courseId);
     return {
       id: index + 1,
-      quizName: quiz?.title || 'Unknown Quiz',
-      courseName: course?.title || 'Unknown Course',
+      quizName: quiz?.title || "Unknown Quiz",
+      courseName: course?.title || "Unknown Course",
       score: attempt.score,
       date: new Date(attempt.completedAt).toLocaleDateString(),
       timeTaken: attempt.timeSpent || 0, // Use actual time spent from quiz attempt
-      onTime: new Date(attempt.completedAt) <= new Date(quiz?.deadline || Date.now())
+      onTime:
+        new Date(attempt.completedAt) <= new Date(quiz?.deadline || Date.now()),
     };
   });
 
@@ -90,57 +152,91 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
   const scoreProgressData = quizPerformanceData.map((item, index) => ({
     attempt: index + 1,
     score: item.score,
-    date: item.date
+    date: item.date,
   }));
 
   const completionChartData = [
-    { name: 'Completed', value: completedCourses.length, color: '#28a745' },
-    { name: 'In Progress', value: inProgressCourses.length, color: '#ffc107' },
-    { name: 'Not Started', value: notStartedCourses.length, color: '#dc3545' }
+    { name: "Completed", value: completedCourses.length, color: "#28a745" },
+    { name: "In Progress", value: inProgressCourses.length, color: "#ffc107" },
+    { name: "Not Started", value: notStartedCourses.length, color: "#dc3545" },
   ];
 
-  const courseScoreData = coursePerformanceData.map(item => ({
-    course: item.courseName.length > 20 ? item.courseName.substring(0, 20) + '...' : item.courseName,
+  const courseScoreData = coursePerformanceData.map((item) => ({
+    course:
+      item.courseName.length > 20
+        ? item.courseName.substring(0, 20) + "..."
+        : item.courseName,
     score: item.quizScore,
-    progress: item.progress
+    progress: item.progress,
   }));
 
   // Activity timeline (using real completion dates from course progress)
   const activityTimeline = [
-    ...userQuizAttempts.slice(-3).map(attempt => {
-      const quiz = quizzes.find(q => q.id === attempt.quizId);
+    ...userQuizAttempts.slice(-3).map((attempt) => {
+      const quiz = quizzes.find((q) => q.id === attempt.quizId);
       return {
-        type: 'quiz',
-        title: `Attempted quiz: ${quiz?.title || 'Unknown Quiz'}`,
+        type: "quiz",
+        title: `Attempted quiz: ${quiz?.title || "Unknown Quiz"}`,
         date: new Date(attempt.completedAt),
-        score: attempt.score
+        score: attempt.score,
       };
     }),
-    ...completedCourses.slice(-2).map(course => ({
-      type: 'course',
+    ...completedCourses.slice(-2).map((course) => ({
+      type: "course",
       title: `Completed course: ${course.title}`,
-      date: courseProgress[course.id]?.completedAt ? new Date(courseProgress[course.id].completedAt) : new Date(),
-      score: null
-    }))
-  ].sort((a, b) => b.date - a.date).slice(0, 5);
+      date: courseProgress[course.id]?.completedAt
+        ? new Date(courseProgress[course.id].completedAt)
+        : new Date(),
+      score: null,
+    })),
+  ]
+    .sort((a, b) => b.date - a.date)
+    .slice(0, 5);
 
   // Weak areas detection
-  const weakAreas = coursePerformanceData.filter(item => item.quizScore < 50 || item.progress < 50);
+  const weakAreas = coursePerformanceData.filter(
+    (item) => item.quizScore < 50 || item.progress < 50,
+  );
 
   // Performance status
   const getPerformanceStatus = () => {
-    if (overallCompletion >= 80 && averageQuizScore >= 80) return { status: 'Excellent', color: 'success', icon: 'bi-trophy-fill' };
-    if (overallCompletion >= 50 && averageQuizScore >= 50) return { status: 'Average', color: 'warning', icon: 'bi-dash-circle-fill' };
-    return { status: 'Needs Improvement', color: 'danger', icon: 'bi-exclamation-triangle-fill' };
+    if (overallCompletion >= 80 && averageQuizScore >= 80)
+      return { status: "Excellent", color: "success", icon: "bi-trophy-fill" };
+    if (overallCompletion >= 50 && averageQuizScore >= 50)
+      return {
+        status: "Average",
+        color: "warning",
+        icon: "bi-dash-circle-fill",
+      };
+    return {
+      status: "Needs Improvement",
+      color: "danger",
+      icon: "bi-exclamation-triangle-fill",
+    };
   };
 
   const performanceStatus = getPerformanceStatus();
 
   // Achievements
   const achievements = [];
-  if (completedCourses.length > 0) achievements.push({ title: 'First Course Completed', icon: 'bi-check-circle-fill', color: 'success' });
-  if (highestScore >= 90) achievements.push({ title: 'Scored above 90%', icon: 'bi-star-fill', color: 'warning' });
-  if (userQuizAttempts.length >= 5) achievements.push({ title: 'Quiz Master', icon: 'bi-question-circle-fill', color: 'info' });
+  if (completedCourses.length > 0)
+    achievements.push({
+      title: "First Course Completed",
+      icon: "bi-check-circle-fill",
+      color: "success",
+    });
+  if (highestScore >= 90)
+    achievements.push({
+      title: "Scored above 90%",
+      icon: "bi-star-fill",
+      color: "warning",
+    });
+  if (userQuizAttempts.length >= 5)
+    achievements.push({
+      title: "Quiz Master",
+      icon: "bi-question-circle-fill",
+      color: "info",
+    });
 
   return (
     <div className="student-performance-dashboard">
@@ -218,8 +314,11 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
               <i className="bi bi-bar-chart display-4 text-warning mb-2"></i>
               <h5 className="card-title">Overall Completion</h5>
               <h3 className="text-warning">{overallCompletion}%</h3>
-              <div className="progress mt-2" style={{ height: '8px' }}>
-                <div className="progress-bar bg-warning" style={{ width: `${overallCompletion}%` }}></div>
+              <div className="progress mt-2" style={{ height: "8px" }}>
+                <div
+                  className="progress-bar bg-warning"
+                  style={{ width: `${overallCompletion}%` }}
+                ></div>
               </div>
             </div>
           </div>
@@ -240,7 +339,12 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
                   <XAxis dataKey="attempt" />
                   <YAxis domain={[0, 100]} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="score" stroke="#007bff" strokeWidth={2} />
+                  <Line
+                    type="monotone"
+                    dataKey="score"
+                    stroke="#007bff"
+                    strokeWidth={2}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -254,19 +358,21 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
             <div className="card-body">
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                 <Pie
-  data={completionChartData}
-  cx="50%"
-  cy="50%"
-  outerRadius={80}
-  dataKey="value"
-  // Only return a label if the value is greater than 0
-  label={({ name, value }) => value > 0 ? `${name}: ${value}` : null}
->
-  {completionChartData.map((entry, index) => (
-    <Cell key={`cell-${index}`} fill={entry.color} />
-  ))}
-</Pie>
+                  <Pie
+                    data={completionChartData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    // Only return a label if the value is greater than 0
+                    label={({ name, value }) =>
+                      value > 0 ? `${name}: ${value}` : null
+                    }
+                  >
+                    {completionChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
@@ -298,21 +404,28 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
                     <td>
                       <div className="d-flex align-items-center">
                         <span className="me-2">{item.progress}%</span>
-                        <div className="progress flex-grow-1" style={{ height: '6px', width: '80px' }}>
+                        <div
+                          className="progress flex-grow-1"
+                          style={{ height: "6px", width: "80px" }}
+                        >
                           <div
-                            className={`progress-bar ${item.progress >= 100 ? 'bg-success' : item.progress > 50 ? 'bg-warning' : 'bg-danger'}`}
+                            className={`progress-bar ${item.progress >= 100 ? "bg-success" : item.progress > 50 ? "bg-warning" : "bg-danger"}`}
                             style={{ width: `${item.progress}%` }}
                           ></div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <span className={`badge ${item.quizScore >= 80 ? 'bg-success' : item.quizScore >= 60 ? 'bg-warning' : 'bg-danger'}`}>
+                      <span
+                        className={`badge ${item.quizScore >= 80 ? "bg-success" : item.quizScore >= 60 ? "bg-warning" : "bg-danger"}`}
+                      >
                         {item.quizScore}%
                       </span>
                     </td>
                     <td>
-                      <span className={`badge ${item.status === 'Completed' ? 'bg-success' : item.status === 'In Progress' ? 'bg-warning' : 'bg-secondary'}`}>
+                      <span
+                        className={`badge ${item.status === "Completed" ? "bg-success" : item.status === "In Progress" ? "bg-warning" : "bg-secondary"}`}
+                      >
                         {item.status}
                       </span>
                     </td>
@@ -372,7 +485,12 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={courseScoreData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="course" angle={-45} textAnchor="end" height={80} />
+                  <XAxis
+                    dataKey="course"
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
                   <YAxis domain={[0, 100]} />
                   <Tooltip />
                   <Bar dataKey="score" fill="#6c757d" />
@@ -399,15 +517,20 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
                       <div>
                         <h6 className="mb-1">{activity.title}</h6>
                         {activity.score && (
-                          <span className={`badge ${activity.score >= 70 ? 'bg-success' : 'bg-danger'} me-2`}>
+                          <span
+                            className={`badge ${activity.score >= 70 ? "bg-success" : "bg-danger"} me-2`}
+                          >
                             {activity.score}%
                           </span>
                         )}
                         <small className="text-muted">
-                          {activity.date.toLocaleDateString()} at {activity.date.toLocaleTimeString()}
+                          {activity.date.toLocaleDateString()} at{" "}
+                          {activity.date.toLocaleTimeString()}
                         </small>
                       </div>
-                      <i className={`bi ${activity.type === 'quiz' ? 'bi-question-circle text-primary' : 'bi-check-circle text-success'} fs-4`}></i>
+                      <i
+                        className={`bi ${activity.type === "quiz" ? "bi-question-circle text-primary" : "bi-check-circle text-success"} fs-4`}
+                      ></i>
                     </div>
                   </div>
                 </div>
@@ -428,11 +551,16 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
               {weakAreas.length > 0 ? (
                 <ul className="list-group list-group-flush">
                   {weakAreas.map((area, index) => (
-                    <li key={index} className="list-group-item d-flex justify-content-between align-items-center">
+                    <li
+                      key={index}
+                      className="list-group-item d-flex justify-content-between align-items-center"
+                    >
                       {area.courseName}
                       <div>
                         {area.quizScore < 50 && (
-                          <span className="badge bg-danger me-1">Low Quiz Score</span>
+                          <span className="badge bg-danger me-1">
+                            Low Quiz Score
+                          </span>
                         )}
                         {area.progress < 50 && (
                           <span className="badge bg-warning">Low Progress</span>
@@ -442,7 +570,9 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
                   ))}
                 </ul>
               ) : (
-                <p className="text-muted text-center py-3">Great job! No weak areas detected.</p>
+                <p className="text-muted text-center py-3">
+                  Great job! No weak areas detected.
+                </p>
               )}
             </div>
           </div>
@@ -458,22 +588,27 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
                   {achievements.map((achievement, index) => (
                     <div key={index} className="col-12 mb-2">
                       <div className="d-flex align-items-center p-2 border rounded">
-                        <i className={`bi ${achievement.icon} text-${achievement.color} me-3 fs-4`}></i>
+                        <i
+                          className={`bi ${achievement.icon} text-${achievement.color} me-3 fs-4`}
+                        ></i>
                         <span className="fw-bold">{achievement.title}</span>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-muted text-center py-3">Complete more courses and quizzes to earn achievements!</p>
+                <p className="text-muted text-center py-3">
+                  Complete more courses and quizzes to earn achievements!
+                </p>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      <style dangerouslySetInnerHTML={{
-        __html: `
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         .timeline-item {
           position: relative;
         }
@@ -493,7 +628,9 @@ const StudentPerformanceDashboard = ({ user, enrolledCourses, courseProgress, qu
           height: calc(100% - 12px);
           background-color: #e9ecef;
         }
-      `}} />
+      `,
+        }}
+      />
     </div>
   );
 };

@@ -1,24 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 
+// QuizTaker - student interface to answer quiz questions and get results
 const QuizTaker = ({ quiz, studentId, onComplete }) => {
+  // Track current question being displayed
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  // Store student's answers to each question
   const [answers, setAnswers] = useState({});
+  // Time remaining in seconds for the quiz
   const [timeLeft, setTimeLeft] = useState(null);
+  // Record when quiz started (for time tracking)
   const [startTime] = useState(new Date());
+  // Show results after quiz is completed
   const [showResults, setShowResults] = useState(false);
+  // Store student's final score
   const [score, setScore] = useState(0);
+  // Track if quiz has started
   const [quizStarted, setQuizStarted] = useState(false);
+  // Track if student accepted quiz instructions
   const [instructionsAccepted, setInstructionsAccepted] = useState(false);
 
   // Safety check for quiz and questions
-  if (!quiz || !quiz.questions || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
+  if (
+    !quiz ||
+    !quiz.questions ||
+    !Array.isArray(quiz.questions) ||
+    quiz.questions.length === 0
+  ) {
     return (
       <div className="container-fluid py-5">
         <div className="row justify-content-center">
           <div className="col-md-6">
             <div className="text-center">
               <i className="bi bi-exclamation-triangle display-4 text-warning mb-3"></i>
-              <h5 className="text-muted">Quiz is not available or has no questions</h5>
+              <h5 className="text-muted">
+                Quiz is not available or has no questions
+              </h5>
               <button
                 className="btn btn-secondary mt-3"
                 onClick={() => window.location.reload()}
@@ -32,7 +48,16 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
     );
   }
 
-  const currentQuestion = quiz.questions[currentQuestionIndex];
+  const rawCurrentQuestion = quiz.questions[currentQuestionIndex];
+  // Normalize legacy/backend field names — accept either questionText or question
+  const currentQuestion = {
+    ...rawCurrentQuestion,
+    questionText:
+      rawCurrentQuestion.questionText ?? rawCurrentQuestion.question ?? "",
+    options: Array.isArray(rawCurrentQuestion.options)
+      ? rawCurrentQuestion.options
+      : [],
+  };
   const totalQuestions = quiz.questions.length;
 
   // Calculate time left if deadline exists
@@ -56,7 +81,7 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
     if (timeLeft === null || timeLeft <= 0) return;
 
     const timer = setInterval(() => {
-      setTimeLeft(prev => {
+      setTimeLeft((prev) => {
         if (prev <= 1) {
           handleSubmitQuiz();
           return 0;
@@ -72,13 +97,13 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
   const handleAnswerChange = (questionId, answer) => {
-    setAnswers(prev => ({
+    setAnswers((prev) => ({
       ...prev,
-      [questionId]: answer
+      [questionId]: answer,
     }));
   };
 
@@ -100,16 +125,28 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
 
   const calculateScore = () => {
     let correctAnswers = 0;
-    quiz.questions.forEach(question => {
+    quiz.questions.forEach((question) => {
       const userAnswer = answers[question.id];
-      if (question.type === 'single') {
+      if (question.type === "single") {
         if (userAnswer === question.correctAnswer) {
           correctAnswers++;
         }
-      } else if (question.type === 'multiple') {
+      } else if (question.type === "multiple") {
         const correctSet = new Set(question.correctAnswer);
         const userSet = new Set(userAnswer || []);
-        if (correctSet.size === userSet.size && [...correctSet].every(ans => userSet.has(ans))) {
+        if (
+          correctSet.size === userSet.size &&
+          [...correctSet].every((ans) => userSet.has(ans))
+        ) {
+          correctAnswers++;
+        }
+      } else if (question.type === "text") {
+        const expected = (question.correctAnswer || "")
+          .toString()
+          .trim()
+          .toLowerCase();
+        const given = (userAnswer || "").toString().trim().toLowerCase();
+        if (expected && given && expected === given) {
           correctAnswers++;
         }
       }
@@ -128,7 +165,7 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
       answers,
       score: finalScore,
       completedAt: new Date().toISOString(),
-      timeSpent: Math.floor((new Date() - startTime) / 1000)
+      timeSpent: Math.floor((new Date() - startTime) / 1000),
     };
 
     onComplete(attemptData);
@@ -141,8 +178,10 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
           <div className="col-md-8">
             <div className="card shadow border-0">
               <div className="card-body text-center py-5">
-                <div className={`display-1 mb-4 ${score >= 70 ? 'text-success' : score >= 50 ? 'text-warning' : 'text-danger'}`}>
-                  {score >= 70 ? '🎉' : score >= 50 ? '👍' : '😞'}
+                <div
+                  className={`display-1 mb-4 ${score >= 70 ? "text-success" : score >= 50 ? "text-warning" : "text-danger"}`}
+                >
+                  {score >= 70 ? "🎉" : score >= 50 ? "👍" : "😞"}
                 </div>
                 <h2 className="mb-3">Quiz Completed!</h2>
                 <div className="mb-4">
@@ -169,15 +208,28 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
                     <div className="col-md-4">
                       <div className="p-3 bg-light rounded">
                         <h5>Status</h5>
-                        <div className={`h4 ${
-                          quiz.hasPassingPercentage && quiz.passingPercentage
-                            ? score >= quiz.passingPercentage ? 'text-success' : 'text-danger'
-                            : score >= 70 ? 'text-success' : score >= 50 ? 'text-warning' : 'text-danger'
-                        }`}>
+                        <div
+                          className={`h4 ${
+                            quiz.hasPassingPercentage && quiz.passingPercentage
+                              ? score >= quiz.passingPercentage
+                                ? "text-success"
+                                : "text-danger"
+                              : score >= 70
+                                ? "text-success"
+                                : score >= 50
+                                  ? "text-warning"
+                                  : "text-danger"
+                          }`}
+                        >
                           {quiz.hasPassingPercentage && quiz.passingPercentage
-                            ? score >= quiz.passingPercentage ? 'Passed ✓' : 'Failed ✗'
-                            : score >= 70 ? 'Passed ✓' : score >= 50 ? 'Average' : 'Failed ✗'
-                          }
+                            ? score >= quiz.passingPercentage
+                              ? "Passed ✓"
+                              : "Failed ✗"
+                            : score >= 70
+                              ? "Passed ✓"
+                              : score >= 50
+                                ? "Average"
+                                : "Failed ✗"}
                         </div>
                       </div>
                     </div>
@@ -186,9 +238,15 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
 
                 {quiz.hasPassingPercentage && quiz.passingPercentage && (
                   <div className="alert alert-info mb-4">
-                    <strong>Passing Score:</strong> {quiz.passingPercentage}% <br/>
-                    <strong>Your Score:</strong> {score}% <br/>
-                    <strong>Result:</strong> {score >= quiz.passingPercentage ? '✓ You Passed!' : '✗ You did not pass. Required: ' + quiz.passingPercentage + '%'}
+                    <strong>Passing Score:</strong> {quiz.passingPercentage}%{" "}
+                    <br />
+                    <strong>Your Score:</strong> {score}% <br />
+                    <strong>Result:</strong>{" "}
+                    {score >= quiz.passingPercentage
+                      ? "✓ You Passed!"
+                      : "✗ You did not pass. Required: " +
+                        quiz.passingPercentage +
+                        "%"}
                   </div>
                 )}
 
@@ -218,7 +276,7 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
               </div>
               <div className="card-body p-4">
                 <h4 className="mb-4 text-center">Quiz Instructions</h4>
-                
+
                 <div className="row mb-4">
                   <div className="col-md-6">
                     <div className="card bg-light border-0">
@@ -231,20 +289,24 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
                             <strong>Total Questions:</strong> {totalQuestions}
                           </li>
                           <li className="mb-2">
-                            <strong>Maximum Attempts:</strong> {quiz.maxAttempts || 'Unlimited'}
+                            <strong>Maximum Attempts:</strong>{" "}
+                            {quiz.maxAttempts || "Unlimited"}
                           </li>
                           {quiz.hasTimeLimit && quiz.timeLimit > 0 && (
                             <li className="mb-2">
-                              <strong>Time Limit:</strong> {quiz.timeLimit} minutes
+                              <strong>Time Limit:</strong> {quiz.timeLimit}{" "}
+                              minutes
                             </li>
                           )}
                           {quiz.deadline && (
                             <li className="mb-2">
-                              <strong>Deadline:</strong> {new Date(quiz.deadline).toLocaleString('en-IN', {
-                                timeZone: 'Asia/Kolkata',
-                                dateStyle: 'medium',
-                                timeStyle: 'short'
-                              })} IST
+                              <strong>Deadline:</strong>{" "}
+                              {new Date(quiz.deadline).toLocaleString("en-IN", {
+                                timeZone: "Asia/Kolkata",
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              })}{" "}
+                              IST
                             </li>
                           )}
                         </ul>
@@ -258,25 +320,36 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
                           <i className="bi bi-trophy me-2"></i>Passing Criteria
                         </h6>
                         <div className="mb-3">
-                          {quiz.hasPassingPercentage && quiz.passingPercentage ? (
+                          {quiz.hasPassingPercentage &&
+                          quiz.passingPercentage ? (
                             <div>
-                              <div className="h5 text-success mb-2">{quiz.passingPercentage}%</div>
-                              <p className="mb-0">You need to score at least {quiz.passingPercentage}% to pass this quiz.</p>
+                              <div className="h5 text-success mb-2">
+                                {quiz.passingPercentage}%
+                              </div>
+                              <p className="mb-0">
+                                You need to score at least{" "}
+                                {quiz.passingPercentage}% to pass this quiz.
+                              </p>
                             </div>
                           ) : (
                             <div>
                               <div className="h5 text-success mb-2">70%</div>
-                              <p className="mb-0">You need to score at least 70% to pass this quiz.</p>
+                              <p className="mb-0">
+                                You need to score at least 70% to pass this
+                                quiz.
+                              </p>
                             </div>
                           )}
                         </div>
                         {quiz.showScoreToStudent ? (
                           <p className="text-muted small mb-0">
-                            <i className="bi bi-eye me-1"></i>Your score will be shown after completion
+                            <i className="bi bi-eye me-1"></i>Your score will be
+                            shown after completion
                           </p>
                         ) : (
                           <p className="text-muted small mb-0">
-                            <i className="bi bi-eye-slash me-1"></i>Only pass/fail status will be shown
+                            <i className="bi bi-eye-slash me-1"></i>Only
+                            pass/fail status will be shown
                           </p>
                         )}
                       </div>
@@ -285,13 +358,21 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
                 </div>
 
                 <div className="alert alert-warning">
-                  <h6><i className="bi bi-exclamation-triangle me-2"></i>Important Instructions</h6>
+                  <h6>
+                    <i className="bi bi-exclamation-triangle me-2"></i>Important
+                    Instructions
+                  </h6>
                   <ul className="mb-0">
                     <li>Read each question carefully before answering</li>
-                    <li>You can navigate between questions using the question numbers</li>
+                    <li>
+                      You can navigate between questions using the question
+                      numbers
+                    </li>
                     <li>You can change your answers before submitting</li>
                     {quiz.hasTimeLimit && quiz.timeLimit > 0 && (
-                      <li>The quiz has a time limit of {quiz.timeLimit} minutes</li>
+                      <li>
+                        The quiz has a time limit of {quiz.timeLimit} minutes
+                      </li>
                     )}
                     <li>Once submitted, you cannot change your answers</li>
                     <li>Make sure you have a stable internet connection</li>
@@ -306,7 +387,10 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
                     checked={instructionsAccepted}
                     onChange={(e) => setInstructionsAccepted(e.target.checked)}
                   />
-                  <label className="form-check-label fw-bold" htmlFor="acceptInstructions">
+                  <label
+                    className="form-check-label fw-bold"
+                    htmlFor="acceptInstructions"
+                  >
                     I have read and understood the instructions
                   </label>
                 </div>
@@ -343,7 +427,9 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h4 className="mb-1">{quiz.title}</h4>
-                  <p className="text-muted mb-0">Question {currentQuestionIndex + 1} of {totalQuestions}</p>
+                  <p className="text-muted mb-0">
+                    Question {currentQuestionIndex + 1} of {totalQuestions}
+                  </p>
                 </div>
                 <div className="col-md-6 text-end">
                   {timeLeft !== null && (
@@ -375,10 +461,10 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
                     key={index}
                     className={`btn btn-sm ${
                       index === currentQuestionIndex
-                        ? 'btn-primary'
+                        ? "btn-primary"
                         : answers[quiz.questions[index].id]
-                        ? 'btn-success'
-                        : 'btn-outline-secondary'
+                          ? "btn-success"
+                          : "btn-outline-secondary"
                     }`}
                     onClick={() => handleQuestionJump(index)}
                   >
@@ -400,7 +486,7 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
               <h5 className="mb-4">{currentQuestion.questionText}</h5>
 
               <div className="mb-4">
-                {currentQuestion.type === 'single' ? (
+                {currentQuestion.type === "single" ? (
                   <div>
                     {currentQuestion.options.map((option, index) => (
                       <div key={index} className="form-check mb-3">
@@ -411,15 +497,36 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
                           id={`option-${index}`}
                           value={option}
                           checked={answers[currentQuestion.id] === option}
-                          onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
+                          onChange={(e) =>
+                            handleAnswerChange(
+                              currentQuestion.id,
+                              e.target.value,
+                            )
+                          }
                         />
-                        <label className="form-check-label w-100" htmlFor={`option-${index}`}>
+                        <label
+                          className="form-check-label w-100"
+                          htmlFor={`option-${index}`}
+                        >
                           <div className="p-3 border rounded hover-bg-light">
-                            <strong>{String.fromCharCode(65 + index)})</strong> {option}
+                            <strong>{String.fromCharCode(65 + index)})</strong>{" "}
+                            {option}
                           </div>
                         </label>
                       </div>
                     ))}
+                  </div>
+                ) : currentQuestion.type === "text" ? (
+                  <div>
+                    <textarea
+                      className="form-control"
+                      rows="3"
+                      placeholder="Type your answer here..."
+                      value={answers[currentQuestion.id] || ""}
+                      onChange={(e) =>
+                        handleAnswerChange(currentQuestion.id, e.target.value)
+                      }
+                    />
                   </div>
                 ) : (
                   <div>
@@ -430,18 +537,25 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
                           type="checkbox"
                           id={`option-${index}`}
                           value={option}
-                          checked={(answers[currentQuestion.id] || []).includes(option)}
+                          checked={(answers[currentQuestion.id] || []).includes(
+                            option,
+                          )}
                           onChange={(e) => {
-                            const currentAnswers = answers[currentQuestion.id] || [];
+                            const currentAnswers =
+                              answers[currentQuestion.id] || [];
                             const newAnswers = currentAnswers.includes(option)
-                              ? currentAnswers.filter(ans => ans !== option)
+                              ? currentAnswers.filter((ans) => ans !== option)
                               : [...currentAnswers, option];
                             handleAnswerChange(currentQuestion.id, newAnswers);
                           }}
                         />
-                        <label className="form-check-label w-100" htmlFor={`option-${index}`}>
+                        <label
+                          className="form-check-label w-100"
+                          htmlFor={`option-${index}`}
+                        >
                           <div className="p-3 border rounded hover-bg-light">
-                            <strong>{String.fromCharCode(65 + index)})</strong> {option}
+                            <strong>{String.fromCharCode(65 + index)})</strong>{" "}
+                            {option}
                           </div>
                         </label>
                       </div>
@@ -469,10 +583,7 @@ const QuizTaker = ({ quiz, studentId, onComplete }) => {
                       <i className="bi bi-check-circle me-1"></i>Submit Quiz
                     </button>
                   ) : (
-                    <button
-                      className="btn btn-primary"
-                      onClick={handleNext}
-                    >
+                    <button className="btn btn-primary" onClick={handleNext}>
                       Next<i className="bi bi-chevron-right ms-1"></i>
                     </button>
                   )}

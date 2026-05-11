@@ -1,136 +1,246 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
+import Navbar from "../../components/layout/Navbar";
 import Profile from "../Profile";
 import CourseList from "../../components/courses/CourseList";
 import CoursePlayer from "../../components/courses/CoursePlayer";
 import QuizTaker from "../../components/quizzes/QuizTaker";
 import StudentOwnPerformanceDashboard from "../../components/StudentOwnPerformanceDashboard";
 
+// Student Dashboard - shows courses, progress, quizzes and ratings
 export default function StudentDashboard() {
+  // Get current user and logout function from auth context
   const { user, logout } = useAuth();
+  const toast = useToast();
+  // Track which tab is currently active (dashboard, courses, quizzes, etc)
   const [activeTab, setActiveTab] = useState("dashboard");
+  // Store which course student is currently viewing
   const [selectedCourse, setSelectedCourse] = useState(null);
 
-  const [courses, setCourses] = useState(() => JSON.parse(localStorage.getItem("APP_COURSES") || "[]"));
-  const [enrollments, setEnrollments] = useState(() => JSON.parse(localStorage.getItem("APP_ENROLLMENTS") || "[]"));
-  const [courseProgress, setCourseProgress] = useState(() => JSON.parse(localStorage.getItem("APP_COURSE_PROGRESS") || "{}"));
-  const [quizzes, setQuizzes] = useState(() => JSON.parse(localStorage.getItem("APP_QUIZZES") || "[]"));
-  const [complaints, setComplaints] = useState(() => JSON.parse(localStorage.getItem("APP_COMPLAINTS") || "[]"));
-  const [courseRatings, setCourseRatings] = useState(() => JSON.parse(localStorage.getItem("APP_COURSE_RATINGS") || "{}"));
+  const [courses, setCourses] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
+  const [courseProgress, setCourseProgress] = useState({});
+  const [quizzes, setQuizzes] = useState([]);
+  const [complaints, setComplaints] = useState([]);
+  const [courseRatings, setCourseRatings] = useState({});
+  // Track if student is currently taking a quiz
   const [takingQuiz, setTakingQuiz] = useState(null);
-  const [quizAttempts, setQuizAttempts] = useState(() => JSON.parse(localStorage.getItem("APP_QUIZ_ATTEMPTS") || "[]"));
+  const [quizAttempts, setQuizAttempts] = useState([]);
+  // For rating form - which course to rate
   const [ratingCourseId, setRatingCourseId] = useState("");
+  // For rating form - course star rating
   const [courseRatingValue, setCourseRatingValue] = useState(5);
+  // For rating form - instructor star rating
   const [instructorRatingValue, setInstructorRatingValue] = useState(5);
+  // For rating form - comment text
   const [ratingComment, setRatingComment] = useState("");
 
+  const API_BASE = "http://localhost:5000/api";
+
+  // Fetch data on mount
   useEffect(() => {
-    localStorage.setItem("APP_COURSES", JSON.stringify(courses));
-  }, [courses]);
+    const fetchData = async () => {
+      try {
+        const [coursesRes, enrollmentsRes, progressRes, quizzesRes, complaintsRes, quizAttemptsRes, ratingsRes] = await Promise.all([
+          fetch(`${API_BASE}/courses`, { credentials: "include" }),
+          fetch(`${API_BASE}/enrollments`, { credentials: "include" }),
+          fetch(`${API_BASE}/progress`, { credentials: "include" }),
+          fetch(`${API_BASE}/quizzes`, { credentials: "include" }),
+          fetch(`${API_BASE}/complaints`, { credentials: "include" }),
+          fetch(`${API_BASE}/quiz-attempts`, { credentials: "include" }),
+          fetch(`${API_BASE}/ratings`, { credentials: "include" }),
+        ]);
+        if (coursesRes.ok) setCourses(await coursesRes.json());
+        if (enrollmentsRes.ok) setEnrollments(await enrollmentsRes.json());
+        if (progressRes.ok) {
+          const progressData = await progressRes.json();
+          const progressMap = {};
+          progressData.forEach(p => progressMap[p.courseId] = p);
+          setCourseProgress(progressMap);
+        }
+        if (quizzesRes.ok) setQuizzes(await quizzesRes.json());
+        if (complaintsRes.ok) setComplaints(await complaintsRes.json());
+        if (quizAttemptsRes.ok) setQuizAttempts(await quizAttemptsRes.json());
+        if (ratingsRes.ok) {
+          const ratingsData = await ratingsRes.json();
+          const ratingsMap = {};
+          ratingsData.forEach(r => ratingsMap[r.courseId] = r);
+          setCourseRatings(ratingsMap);
+        }
+      } catch (error) {
+        console.error("Failed to fetch student data", error);
+      }
+    };
+    fetchData();
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem("APP_ENROLLMENTS", JSON.stringify(enrollments));
-  }, [enrollments]);
+  // No localStorage sync for student dashboard data
 
-  useEffect(() => {
-    localStorage.setItem("APP_COURSE_PROGRESS", JSON.stringify(courseProgress));
-  }, [courseProgress]);
+  // Get only courses that student is enrolled in
+  const enrolledCourses = (enrollments || [])
+    .filter((e) => e.userId === user.id)
+    .map((e) => (courses || []).find((c) => c._id === e.courseId))
+    .filter(Boolean);
+  // Get list of enrolled course IDs
+  const enrolledCourseIds = enrolledCourses.map((c) => c._id);
+  // Get courses that are 100% completed
+  const completedCourses = enrolledCourses.filter(
+    (course) => (courseProgress[course._id]?.progress || 0) >= 100,
+  );
+  // Get completed courses that haven't been rated yet
+  const pendingRatingCourses = completedCourses.filter(
+    (course) => !courseRatings[course.id],
+  );
 
-  useEffect(() => {
-    localStorage.setItem("APP_COURSE_RATINGS", JSON.stringify(courseRatings));
-  }, [courseRatings]);
-
-  useEffect(() => {
-    localStorage.setItem("APP_QUIZZES", JSON.stringify(quizzes));
-  }, [quizzes]);
-
-  useEffect(() => {
-    localStorage.setItem("APP_COMPLAINTS", JSON.stringify(complaints));
-  }, [complaints]);
-
-  useEffect(() => {
-    localStorage.setItem("APP_QUIZ_ATTEMPTS", JSON.stringify(quizAttempts));
-  }, [quizAttempts]);
-
-  const enrolledCourses = (enrollments || []).filter(e => e.userId === user.id).map(e => (courses || []).find(c => c.id === e.courseId)).filter(Boolean);
-  const enrolledCourseIds = enrolledCourses.map(c => c.id);
-  const completedCourses = enrolledCourses.filter(course => (courseProgress[course.id]?.progress || 0) >= 100);
-  const pendingRatingCourses = completedCourses.filter(course => !courseRatings[course.id]);
-
-  const availableQuizzes = quizzes.filter(q => {
+  const availableQuizzes = quizzes.filter((q) => {
     if (!q.published || !enrolledCourseIds.includes(q.courseId)) return false;
     if (q.deadline && new Date() > new Date(q.deadline)) return false;
-    const userAttempts = quizAttempts.filter(a => a.quizId === q.id && a.studentId === user.id);
+    const userAttempts = quizAttempts.filter(
+      (a) => a.quizId === q.id && a.studentId === user.id,
+    );
     if (q.maxAttempts && userAttempts.length >= q.maxAttempts) return false;
     return true;
   });
 
-  const availableCourses = (courses || []).filter(c => !(enrollments || []).some(e => e.userId === user.id && e.courseId === c.id));
+  const availableCourses = (courses || []).filter(
+    (c) =>
+      !(enrollments || []).some(
+        (e) => e.userId === user.id && e.courseId === c.id,
+      ),
+  );
 
-  const completedQuizzes = quizAttempts.filter(attempt => attempt.studentId === user.id).map(attempt => {
-    const quiz = quizzes.find(q => q.id === attempt.quizId);
-    const course = courses.find(c => c.id === quiz?.courseId);
-    return {
-      ...attempt,
-      quizTitle: quiz?.title || 'Unknown Quiz',
-      courseTitle: course?.title || 'Unknown Course',
-      quiz
-    };
-  });
+  const completedQuizzes = quizAttempts
+    .filter((attempt) => attempt.studentId === user.id)
+    .map((attempt) => {
+      const quiz = quizzes.find((q) => q.id === attempt.quizId);
+      const course = courses.find((c) => c.id === quiz?.courseId);
+      return {
+        ...attempt,
+        quizTitle: quiz?.title || "Unknown Quiz",
+        courseTitle: course?.title || "Unknown Course",
+        quiz,
+      };
+    });
 
   const recentActivity = [
-    ...completedCourses.map(course => ({
-      type: 'course',
+    ...completedCourses.map((course) => ({
+      type: "course",
       title: `Completed course: ${course.title}`,
-      date: courseProgress[course.id]?.completedAt ? new Date(courseProgress[course.id].completedAt) : null,
+      date: courseProgress[course.id]?.completedAt
+        ? new Date(courseProgress[course.id].completedAt)
+        : null,
     })),
-    ...completedQuizzes.map(attempt => ({
-      type: 'quiz',
+    ...completedQuizzes.map((attempt) => ({
+      type: "quiz",
       title: `Completed quiz: ${attempt.quizTitle}`,
       date: attempt.completedAt ? new Date(attempt.completedAt) : null,
       score: attempt.score,
     })),
   ]
-    .filter(item => item.date)
+    .filter((item) => item.date)
     .sort((a, b) => b.date - a.date)
     .slice(0, 5);
 
-  const enroll = (courseId) => {
-    if ((enrollments || []).some(e => e.userId === user.id && e.courseId === courseId)) return;
-    setEnrollments([...enrollments, { userId: user.id, courseId, enrolledAt: new Date().toISOString(), lastActive: new Date().toISOString() }]);
+  const enroll = async (courseId) => {
+    try {
+      const response = await fetch(`${API_BASE}/enrollments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ courseId }),
+      });
+      if (response.ok) {
+        const enrollment = await response.json();
+        setEnrollments([...enrollments, enrollment]);
+        toast.success("Enrolled successfully!");
+      } else {
+        toast.error("Failed to enroll");
+      }
+    } catch (error) {
+      console.error("Error enrolling", error);
+      toast.error("Error enrolling");
+    }
   };
 
   // Update lastActive when student accesses course content
-  const updateLastActive = (courseId) => {
-    setEnrollments(prev => prev.map(e => 
-      e.userId === user.id && e.courseId === courseId 
-        ? { ...e, lastActive: new Date().toISOString() }
-        : e
-    ));
+  const updateLastActive = async (courseId) => {
+    try {
+      const response = await fetch(`${API_BASE}/enrollments/course/${courseId}/last-active`, {
+        method: "PUT",
+        credentials: "include",
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setEnrollments(prev => prev.map(e => e._id === updated._id ? updated : e));
+      }
+    } catch (error) {
+      console.error("Error updating last active", error);
+    }
   };
 
-  const handleTopicComplete = (courseId, topic) => {
-    const course = courses.find(c => c.id === courseId);
-    if (!course) return;
-    const totalTopics = course.content?.length || 0;
-    setCourseProgress(prev => {
-      const already = prev[courseId]?.completedTopics || [];
-      const nextTopics = Array.from(new Set([...already, topic]));
-      const progress = totalTopics ? Math.round((nextTopics.length / totalTopics) * 100) : 0;
-      const wasComplete = prev[courseId]?.progress >= 100;
-      const nowComplete = progress >= 100;
-      const completedAt = nowComplete ? (wasComplete ? prev[courseId]?.completedAt : new Date().toISOString()) : prev[courseId]?.completedAt || null;
-      return { ...prev, [courseId]: { completedTopics: nextTopics, progress, completedAt } };
-    });
+  const handleTopicComplete = async (courseId, topic) => {
+    try {
+      const response = await fetch(`${API_BASE}/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ courseId, topic }),
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setCourseProgress(prev => ({ ...prev, [courseId]: updated }));
+      }
+    } catch (error) {
+      console.error("Error updating progress", error);
+    }
   };
 
-  const fileComplaint = (complaint) => {
-    setComplaints([...complaints, { id: Date.now(), userId: user.id, userName: user.name, complaint, status: 'pending' }]);
+  const fileComplaint = async (complaint) => {
+    try {
+      const response = await fetch(`${API_BASE}/complaints`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ complaint }),
+      });
+      if (response.ok) {
+        const newComplaint = await response.json();
+        setComplaints([...complaints, newComplaint]);
+        toast.success("Complaint raised successfully");
+      } else {
+        toast.error('Failed to file complaint');
+      }
+    } catch (error) {
+      console.error('Error filing complaint:', error);
+      toast.error('Error filing complaint');
+    }
   };
 
-  const handleQuizComplete = (attemptData) => {
-    setQuizAttempts([...quizAttempts, attemptData]);
-    setTakingQuiz(null);
+  const handleQuizComplete = async (attemptData) => {
+    try {
+      const response = await fetch(`${API_BASE}/quiz-attempts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(attemptData),
+      });
+      if (response.ok) {
+        const newAttempt = await response.json();
+        setQuizAttempts([...quizAttempts, newAttempt]);
+        setTakingQuiz(null);
+        toast.success("Quiz submitted!");
+      } else {
+        toast.error('Failed to submit quiz attempt');
+      }
+    } catch (error) {
+      console.error('Error submitting quiz attempt:', error);
+      toast.error('Error submitting quiz attempt');
+    }
   };
 
   useEffect(() => {
@@ -139,90 +249,124 @@ export default function StudentDashboard() {
     }
   }, [pendingRatingCourses, ratingCourseId]);
 
-  const saveCourseRating = (courseId) => {
+  const saveCourseRating = async (courseId) => {
     if (!courseId) return;
-    const nextRatingCourse = pendingRatingCourses.find(course => course.id !== courseId);
-    setCourseRatings(prev => ({
-      ...prev,
-      [courseId]: {
-        courseRating: Number(courseRatingValue),
-        instructorRating: Number(instructorRatingValue),
-        comment: ratingComment,
-        ratedAt: new Date().toISOString(),
+    try {
+      const response = await fetch(`${API_BASE}/ratings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          courseId,
+          courseRating: Number(courseRatingValue),
+          instructorRating: Number(instructorRatingValue),
+          comment: ratingComment,
+        }),
+      });
+      if (!response.ok) {
+        toast.error("Failed to save rating");
+        return;
       }
-    }));
-    setCourseRatingValue(5);
-    setInstructorRatingValue(5);
-    setRatingComment("");
-    setRatingCourseId(nextRatingCourse?.id || "");
+      const saved = await response.json();
+      setCourseRatings((prev) => ({ ...prev, [courseId]: saved }));
+      const nextRatingCourse = pendingRatingCourses.find(
+        (course) => course.id !== courseId,
+      );
+      setCourseRatingValue(5);
+      setInstructorRatingValue(5);
+      setRatingComment("");
+      setRatingCourseId(nextRatingCourse?.id || "");
+      toast.success("Rating saved");
+    } catch (error) {
+      console.error("Error saving rating", error);
+      toast.error("Error saving rating");
+    }
   };
 
   return (
     <div className="d-flex flex-column min-vh-100 bg-light">
-      <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow" style={{ height: '56px' }}>
-        <div className="container-fluid">
-          <a className="navbar-brand fw-bold" href="#">
-            <i className="bi bi-book-half me-2"></i>E-Learning Platform
-          </a>
-          <div className="collapse navbar-collapse" id="navbarNav">
-            <ul className="navbar-nav ms-auto">
-              <li className="nav-item">
-                <span className="nav-link">Welcome, {user.name}</span>
-              </li>
-              <li className="nav-item">
-                <button className="btn btn-outline-light ms-2" onClick={logout}>Logout</button>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
-      <div className="d-flex flex-grow-1" style={{ minHeight: 'calc(100vh - 56px)' }}>
-        <div className="bg-white shadow-sm p-3" style={{ width: '250px', minHeight: '100%' }}>
+      <div
+        className="d-flex flex-grow-1"
+        style={{ minHeight: "calc(100vh - 56px)" }}
+      >
+        <div
+          className="bg-white shadow-sm p-3"
+          style={{ width: "250px", minHeight: "100%" }}
+        >
           <h5 className="text-primary mb-4">Student Menu</h5>
           <ul className="nav flex-column">
             <li className="nav-item mb-2">
-              <button className={`nav-link btn btn-link text-start ${activeTab === "dashboard" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("dashboard")}>
+              <button
+                className={`nav-link btn btn-link text-start ${activeTab === "dashboard" ? "text-primary fw-bold" : "text-dark"}`}
+                onClick={() => setActiveTab("dashboard")}
+              >
                 <i className="bi bi-house-door me-2"></i>Dashboard
               </button>
             </li>
             <li className="nav-item mb-2">
-              <button className={`nav-link btn btn-link text-start ${activeTab === "Enrolled Courses" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("Enrolled Courses")}>
+              <button
+                className={`nav-link btn btn-link text-start ${activeTab === "Enrolled Courses" ? "text-primary fw-bold" : "text-dark"}`}
+                onClick={() => setActiveTab("Enrolled Courses")}
+              >
                 <i className="bi bi-collection me-2"></i>Enrolled Courses
               </button>
             </li>
             <li className="nav-item mb-2">
-              <button className={`nav-link btn btn-link text-start ${activeTab === "Completed Courses" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("Completed Courses")}>
-                <i className="bi bi-check-square-fill me-2"></i>Completed Courses
+              <button
+                className={`nav-link btn btn-link text-start ${activeTab === "Completed Courses" ? "text-primary fw-bold" : "text-dark"}`}
+                onClick={() => setActiveTab("Completed Courses")}
+              >
+                <i className="bi bi-check-square-fill me-2"></i>Completed
+                Courses
               </button>
             </li>
             <li className="nav-item mb-2">
-              <button className={`nav-link btn btn-link text-start ${activeTab === "browse" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("browse")}>
+              <button
+                className={`nav-link btn btn-link text-start ${activeTab === "browse" ? "text-primary fw-bold" : "text-dark"}`}
+                onClick={() => setActiveTab("browse")}
+              >
                 <i className="bi bi-search me-2"></i>Browse Courses
               </button>
             </li>
             <li className="nav-item mb-2">
-              <button className={`nav-link btn btn-link text-start ${activeTab === "quizzes" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("quizzes")}>
+              <button
+                className={`nav-link btn btn-link text-start ${activeTab === "quizzes" ? "text-primary fw-bold" : "text-dark"}`}
+                onClick={() => setActiveTab("quizzes")}
+              >
                 <i className="bi bi-question-circle me-2"></i>Available Quizzes
               </button>
             </li>
             <li className="nav-item mb-2">
-              <button className={`nav-link btn btn-link text-start ${activeTab === "completed-quizzes" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("completed-quizzes")}>
+              <button
+                className={`nav-link btn btn-link text-start ${activeTab === "completed-quizzes" ? "text-primary fw-bold" : "text-dark"}`}
+                onClick={() => setActiveTab("completed-quizzes")}
+              >
                 <i className="bi bi-check-circle me-2"></i>Completed Quizzes
               </button>
             </li>
             <li className="nav-item mb-2">
-              <button className={`nav-link btn btn-link text-start ${activeTab === "performance" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("performance")}>
+              <button
+                className={`nav-link btn btn-link text-start ${activeTab === "performance" ? "text-primary fw-bold" : "text-dark"}`}
+                onClick={() => setActiveTab("performance")}
+              >
                 <i className="bi bi-graph-up me-2"></i>Performance
               </button>
             </li>
             <li className="nav-item mb-2">
-              <button className={`nav-link btn btn-link text-start ${activeTab === "profile" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("profile")}>
+              <button
+                className={`nav-link btn btn-link text-start ${activeTab === "profile" ? "text-primary fw-bold" : "text-dark"}`}
+                onClick={() => setActiveTab("profile")}
+              >
                 <i className="bi bi-person me-2"></i>Profile
               </button>
             </li>
             <li className="nav-item mb-2">
-              <button className={`nav-link btn btn-link text-start ${activeTab === "complaints" ? "text-primary fw-bold" : "text-dark"}`} onClick={() => setActiveTab("complaints")}>
+              <button
+                className={`nav-link btn btn-link text-start ${activeTab === "complaints" ? "text-primary fw-bold" : "text-dark"}`}
+                onClick={() => setActiveTab("complaints")}
+              >
                 <i className="bi bi-exclamation-triangle me-2"></i>Complaints
               </button>
             </li>
@@ -232,7 +376,10 @@ export default function StudentDashboard() {
         <div className="flex-grow-1 p-4">
           {activeTab === "dashboard" && (
             <div>
-              <div style={{ backgroundColor: '#0DCAF0', color: 'white' }} className="p-5 mb-4 rounded shadow">
+              <div
+                style={{ backgroundColor: "#0DCAF0", color: "white" }}
+                className="p-5 mb-4 rounded shadow"
+              >
                 <h1 className="display-4">Welcome back, {user.name}!</h1>
                 <p className="lead">Continue your learning journey.</p>
               </div>
@@ -242,7 +389,9 @@ export default function StudentDashboard() {
                     <div className="card-body">
                       <i className="bi bi-book display-4 text-primary"></i>
                       <h5 className="card-title">Enrolled Courses</h5>
-                      <p className="card-text display-4">{enrolledCourses.length}</p>
+                      <p className="card-text display-4">
+                        {enrolledCourses.length}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -251,7 +400,9 @@ export default function StudentDashboard() {
                     <div className="card-body">
                       <i className="bi bi-trophy display-4 text-success"></i>
                       <h5 className="card-title">Completed Courses</h5>
-                      <p className="card-text display-4">{completedCourses.length}</p>
+                      <p className="card-text display-4">
+                        {completedCourses.length}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -269,7 +420,9 @@ export default function StudentDashboard() {
                     <div className="card-body">
                       <i className="bi bi-question-circle display-4 text-warning"></i>
                       <h5 className="card-title">Available Quizzes</h5>
-                      <p className="card-text display-4">{availableQuizzes.length}</p>
+                      <p className="card-text display-4">
+                        {availableQuizzes.length}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -278,11 +431,18 @@ export default function StudentDashboard() {
                 <div className="col-md-4 mb-3">
                   <div className="card text-center shadow-sm border-primary">
                     <div className="card-body">
-                      <h6 className="card-title text-uppercase">Avg Course Rating</h6>
+                      <h6 className="card-title text-uppercase">
+                        Avg Course Rating
+                      </h6>
                       <p className="display-4 text-primary">
                         {Object.values(courseRatings).length
-                          ? (Object.values(courseRatings).reduce((sum, r) => sum + (r.courseRating || 0), 0) / Object.values(courseRatings).length).toFixed(1)
-                          : '0.0'}
+                          ? (
+                              Object.values(courseRatings).reduce(
+                                (sum, r) => sum + (r.courseRating || 0),
+                                0,
+                              ) / Object.values(courseRatings).length
+                            ).toFixed(1)
+                          : "0.0"}
                       </p>
                     </div>
                   </div>
@@ -290,11 +450,18 @@ export default function StudentDashboard() {
                 <div className="col-md-4 mb-3">
                   <div className="card text-center shadow-sm border-success">
                     <div className="card-body">
-                      <h6 className="card-title text-uppercase">Avg Instructor Rating</h6>
+                      <h6 className="card-title text-uppercase">
+                        Avg Instructor Rating
+                      </h6>
                       <p className="display-4 text-success">
                         {Object.values(courseRatings).length
-                          ? (Object.values(courseRatings).reduce((sum, r) => sum + (r.instructorRating || 0), 0) / Object.values(courseRatings).length).toFixed(1)
-                          : '0.0'}
+                          ? (
+                              Object.values(courseRatings).reduce(
+                                (sum, r) => sum + (r.instructorRating || 0),
+                                0,
+                              ) / Object.values(courseRatings).length
+                            ).toFixed(1)
+                          : "0.0"}
                       </p>
                     </div>
                   </div>
@@ -302,8 +469,12 @@ export default function StudentDashboard() {
                 <div className="col-md-4 mb-3">
                   <div className="card text-center shadow-sm border-warning">
                     <div className="card-body">
-                      <h6 className="card-title text-uppercase">Total Rated Courses</h6>
-                      <p className="display-4 text-warning">{Object.keys(courseRatings).length}</p>
+                      <h6 className="card-title text-uppercase">
+                        Total Rated Courses
+                      </h6>
+                      <p className="display-4 text-warning">
+                        {Object.keys(courseRatings).length}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -312,19 +483,31 @@ export default function StudentDashboard() {
               {recentActivity.length > 0 ? (
                 <ul className="list-group">
                   {recentActivity.map((item, idx) => (
-                    <li key={idx} className="list-group-item d-flex justify-content-between align-items-center">
+                    <li
+                      key={idx}
+                      className="list-group-item d-flex justify-content-between align-items-center"
+                    >
                       <div>
                         <strong>{item.title}</strong>
-                        <div className="text-muted small">{item.date.toLocaleString()}</div>
+                        <div className="text-muted small">
+                          {item.date.toLocaleString()}
+                        </div>
                       </div>
-                      <span className={`badge ${item.type === 'course' ? 'bg-success' : 'bg-primary'} rounded-pill`}>
-                        {item.type === 'course' ? 'Course' : `Quiz ${item.score ?? ''}`}
+                      <span
+                        className={`badge ${item.type === "course" ? "bg-success" : "bg-primary"} rounded-pill`}
+                      >
+                        {item.type === "course"
+                          ? "Course"
+                          : `Quiz ${item.score ?? ""}`}
                       </span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-muted">No recent activity yet. Start completing courses and quizzes to see activity here.</p>
+                <p className="text-muted">
+                  No recent activity yet. Start completing courses and quizzes
+                  to see activity here.
+                </p>
               )}
             </div>
           )}
@@ -333,7 +516,7 @@ export default function StudentDashboard() {
             <div>
               <h2 className="mb-4 fw-bold text-dark">My Enrolled Courses</h2>
               <div className="row">
-                {enrolledCourses.map(course => {
+                {enrolledCourses.map((course) => {
                   const progress = courseProgress[course.id]?.progress || 0;
                   return (
                     <div key={course.id} className="col-md-6 mb-4">
@@ -341,9 +524,14 @@ export default function StudentDashboard() {
                         <div className="card-body">
                           <h5 className="card-title">{course.title}</h5>
                           <p className="card-text">{course.description}</p>
-                          <p className="text-muted">Instructor: {course.instructorName}</p>
+                          <p className="text-muted">
+                            Instructor: {course.instructorName}
+                          </p>
                           <div className="progress mb-2">
-                            <div className="progress-bar bg-success" style={{ width: `${progress}%` }}></div>
+                            <div
+                              className="progress-bar bg-success"
+                              style={{ width: `${progress}%` }}
+                            ></div>
                           </div>
                           <small>{progress}% Complete</small>
                           <button
@@ -371,7 +559,9 @@ export default function StudentDashboard() {
                     <div className="text-center py-5">
                       <i className="bi bi-info-circle display-4 text-muted mb-3"></i>
                       <h5 className="text-muted">No enrolled courses yet</h5>
-                      <p className="text-muted">Browse available courses and enroll to start learning</p>
+                      <p className="text-muted">
+                        Browse available courses and enroll to start learning
+                      </p>
                       <button
                         className="btn btn-primary mt-3"
                         onClick={() => setActiveTab("browse")}
@@ -406,7 +596,10 @@ export default function StudentDashboard() {
               {pendingRatingCourses.length > 0 && (
                 <div className="alert alert-info">
                   <h5 className="alert-heading">Rate Completed Course</h5>
-                  <p>Please help improve the platform by rating the course and instructor.</p>
+                  <p>
+                    Please help improve the platform by rating the course and
+                    instructor.
+                  </p>
                   <div className="mb-3">
                     <label className="form-label">Course</label>
                     <select
@@ -414,8 +607,10 @@ export default function StudentDashboard() {
                       value={ratingCourseId}
                       onChange={(e) => setRatingCourseId(e.target.value)}
                     >
-                      {pendingRatingCourses.map(course => (
-                        <option key={course.id} value={course.id}>{course.title}</option>
+                      {pendingRatingCourses.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.title}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -423,11 +618,15 @@ export default function StudentDashboard() {
                     <div className="col-md-6">
                       <label className="form-label">Course Rating</label>
                       <div>
-                        {[1, 2, 3, 4, 5].map(score => (
+                        {[1, 2, 3, 4, 5].map((score) => (
                           <i
                             key={score}
-                            className={`bi ${score <= courseRatingValue ? 'bi-star-fill text-warning' : 'bi-star text-secondary'}`}
-                            style={{ cursor: 'pointer', fontSize: '1.4rem', marginRight: '4px' }}
+                            className={`bi ${score <= courseRatingValue ? "bi-star-fill text-warning" : "bi-star text-secondary"}`}
+                            style={{
+                              cursor: "pointer",
+                              fontSize: "1.4rem",
+                              marginRight: "4px",
+                            }}
                             onClick={() => setCourseRatingValue(score)}
                           ></i>
                         ))}
@@ -437,29 +636,44 @@ export default function StudentDashboard() {
                     <div className="col-md-6">
                       <label className="form-label">Instructor Rating</label>
                       <div>
-                        {[1, 2, 3, 4, 5].map(score => (
+                        {[1, 2, 3, 4, 5].map((score) => (
                           <i
                             key={score}
-                            className={`bi ${score <= instructorRatingValue ? 'bi-star-fill text-info' : 'bi-star text-secondary'}`}
-                            style={{ cursor: 'pointer', fontSize: '1.4rem', marginRight: '4px' }}
+                            className={`bi ${score <= instructorRatingValue ? "bi-star-fill text-info" : "bi-star text-secondary"}`}
+                            style={{
+                              cursor: "pointer",
+                              fontSize: "1.4rem",
+                              marginRight: "4px",
+                            }}
                             onClick={() => setInstructorRatingValue(score)}
                           ></i>
                         ))}
-                        <span className="ms-2">{instructorRatingValue} / 5</span>
+                        <span className="ms-2">
+                          {instructorRatingValue} / 5
+                        </span>
                       </div>
                     </div>
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Comments</label>
-                    <textarea className="form-control" value={ratingComment} onChange={(e) => setRatingComment(e.target.value)} rows={2} placeholder="What did you like? Any improvement suggestions?" />
+                    <textarea
+                      className="form-control"
+                      value={ratingComment}
+                      onChange={(e) => setRatingComment(e.target.value)}
+                      rows={2}
+                      placeholder="What did you like? Any improvement suggestions?"
+                    />
                   </div>
-                  <button className="btn btn-primary" onClick={() => saveCourseRating(ratingCourseId)}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => saveCourseRating(ratingCourseId)}
+                  >
                     Submit Rating
                   </button>
                 </div>
               )}
               <div className="row">
-                {completedCourses.map(course => (
+                {completedCourses.map((course) => (
                   <div key={course.id} className="col-md-6 mb-4">
                     <div className="card shadow h-100">
                       <div className="card-body">
@@ -475,8 +689,16 @@ export default function StudentDashboard() {
                     <div className="text-center py-5">
                       <i className="bi bi-info-circle display-4 text-muted mb-3"></i>
                       <h5 className="text-muted">No courses completed yet</h5>
-                      <p className="text-muted">Once you finish all topics in a course, it will be shown here.</p>
-                      <button className="btn btn-primary mt-3" onClick={() => setActiveTab("browse")}>Browse Courses</button>
+                      <p className="text-muted">
+                        Once you finish all topics in a course, it will be shown
+                        here.
+                      </p>
+                      <button
+                        className="btn btn-primary mt-3"
+                        onClick={() => setActiveTab("browse")}
+                      >
+                        Browse Courses
+                      </button>
                     </div>
                   </div>
                 )}
@@ -488,40 +710,66 @@ export default function StudentDashboard() {
             <div>
               <h2 className="mb-4">Available Quizzes</h2>
               <div className="row">
-                {availableQuizzes.map(quiz => {
-                  const userAttempts = quizAttempts.filter(a => a.quizId === quiz.id && a.studentId === user.id);
-                  const canTakeQuiz = !quiz.maxAttempts || userAttempts.length < quiz.maxAttempts;
+                {availableQuizzes.map((quiz) => {
+                  const userAttempts = quizAttempts.filter(
+                    (a) => a.quizId === quiz.id && a.studentId === user.id,
+                  );
+                  const canTakeQuiz =
+                    !quiz.maxAttempts || userAttempts.length < quiz.maxAttempts;
 
                   return (
                     <div key={quiz.id} className="col-md-4 mb-4">
                       <div className="card shadow h-100">
                         <div className="card-body d-flex flex-column">
                           <h5 className="card-title">{quiz.title}</h5>
-                          <p className="card-text">Course: {(courses || []).find(c => c.id === quiz.courseId)?.title}</p>
-                          <p className="text-muted small">Questions: {quiz.totalQuestions}</p>
+                          <p className="card-text">
+                            Course:{" "}
+                            {
+                              (courses || []).find(
+                                (c) => c.id === quiz.courseId,
+                              )?.title
+                            }
+                          </p>
+                          <p className="text-muted small">
+                            Questions: {quiz.totalQuestions}
+                          </p>
                           {quiz.deadline && (
                             <p className="text-muted small">
-                              Deadline: {new Date(quiz.deadline).toLocaleDateString()}
+                              Deadline:{" "}
+                              {new Date(quiz.deadline).toLocaleDateString()}
                             </p>
                           )}
                           {userAttempts.length > 0 && (
                             <p className="text-muted small">
-                              Attempts: {userAttempts.length}/{quiz.maxAttempts || '8'}
+                              Attempts: {userAttempts.length}/
+                              {quiz.maxAttempts || "8"}
                               {userAttempts.length > 0 && (
                                 <span className="ms-2">
-                                  Best Score: {Math.max(...userAttempts.map(a => a.score))}%
+                                  Best Score:{" "}
+                                  {Math.max(
+                                    ...userAttempts.map((a) => a.score),
+                                  )}
+                                  %
                                 </span>
                               )}
                             </p>
                           )}
                           <div className="mt-auto">
                             {canTakeQuiz ? (
-                              <button className="btn btn-success w-100" onClick={() => setTakingQuiz(quiz)}>
-                                <i className="bi bi-play-circle me-2"></i>Take Quiz
+                              <button
+                                className="btn btn-success w-100"
+                                onClick={() => setTakingQuiz(quiz)}
+                              >
+                                <i className="bi bi-play-circle me-2"></i>Take
+                                Quiz
                               </button>
                             ) : (
-                              <button className="btn btn-secondary w-100" disabled>
-                                <i className="bi bi-x-circle me-2"></i>Max Attempts Reached
+                              <button
+                                className="btn btn-secondary w-100"
+                                disabled
+                              >
+                                <i className="bi bi-x-circle me-2"></i>Max
+                                Attempts Reached
                               </button>
                             )}
                           </div>
@@ -535,7 +783,10 @@ export default function StudentDashboard() {
                     <div className="text-center py-5">
                       <i className="bi bi-info-circle display-4 text-muted mb-3"></i>
                       <h5 className="text-muted">No quizzes available</h5>
-                      <p className="text-muted">Quizzes will appear here when your instructors publish them</p>
+                      <p className="text-muted">
+                        Quizzes will appear here when your instructors publish
+                        them
+                      </p>
                     </div>
                   </div>
                 )}
@@ -552,27 +803,47 @@ export default function StudentDashboard() {
                     <div className="card shadow h-100">
                       <div className="card-body">
                         <h5 className="card-title">{attempt.quizTitle}</h5>
-                        <p className="text-muted">Course: {attempt.courseTitle}</p>
+                        <p className="text-muted">
+                          Course: {attempt.courseTitle}
+                        </p>
                         <div className="row text-center mb-3">
                           <div className="col-6">
                             <div className="p-2 bg-light rounded">
-                              <div className="h4 text-primary fw-bold">{attempt.score}%</div>
+                              <div className="h4 text-primary fw-bold">
+                                {attempt.score}%
+                              </div>
                               <small className="text-muted">Score</small>
                             </div>
                           </div>
                           <div className="col-6">
                             <div className="p-2 bg-light rounded">
-                              <div className={`h4 fw-bold ${attempt.quiz?.hasPassingPercentage && attempt.quiz?.passingPercentage ? attempt.score >= attempt.quiz.passingPercentage ? 'text-success' : 'text-danger' : attempt.score >= 70 ? 'text-success' : 'text-danger'}`}>
-                                {attempt.quiz?.hasPassingPercentage && attempt.quiz?.passingPercentage ? attempt.score >= attempt.quiz.passingPercentage ? 'Passed' : 'Failed' : attempt.score >= 70 ? 'Passed' : 'Failed'}
+                              <div
+                                className={`h4 fw-bold ${attempt.quiz?.hasPassingPercentage && attempt.quiz?.passingPercentage ? (attempt.score >= attempt.quiz.passingPercentage ? "text-success" : "text-danger") : attempt.score >= 70 ? "text-success" : "text-danger"}`}
+                              >
+                                {attempt.quiz?.hasPassingPercentage &&
+                                attempt.quiz?.passingPercentage
+                                  ? attempt.score >=
+                                    attempt.quiz.passingPercentage
+                                    ? "Passed"
+                                    : "Failed"
+                                  : attempt.score >= 70
+                                    ? "Passed"
+                                    : "Failed"}
                               </div>
                               <small className="text-muted">Status</small>
                             </div>
                           </div>
                         </div>
-                        <p className="text-muted small mb-2">Completed on: {new Date(attempt.completedAt).toLocaleDateString()}</p>
-                        {attempt.quiz?.hasPassingPercentage && attempt.quiz?.passingPercentage && (
-                          <p className="text-muted small mb-0">Passing Score: {attempt.quiz.passingPercentage}%</p>
-                        )}
+                        <p className="text-muted small mb-2">
+                          Completed on:{" "}
+                          {new Date(attempt.completedAt).toLocaleDateString()}
+                        </p>
+                        {attempt.quiz?.hasPassingPercentage &&
+                          attempt.quiz?.passingPercentage && (
+                            <p className="text-muted small mb-0">
+                              Passing Score: {attempt.quiz.passingPercentage}%
+                            </p>
+                          )}
                       </div>
                     </div>
                   </div>
@@ -582,8 +853,15 @@ export default function StudentDashboard() {
                     <div className="text-center py-5">
                       <i className="bi bi-check-circle display-4 text-muted mb-3"></i>
                       <h5 className="text-muted">No completed quizzes yet</h5>
-                      <p className="text-muted">Complete some quizzes to see them here</p>
-                      <button className="btn btn-primary mt-3" onClick={() => setActiveTab("quizzes")}>Take a Quiz</button>
+                      <p className="text-muted">
+                        Complete some quizzes to see them here
+                      </p>
+                      <button
+                        className="btn btn-primary mt-3"
+                        onClick={() => setActiveTab("quizzes")}
+                      >
+                        Take a Quiz
+                      </button>
                     </div>
                   </div>
                 )}
@@ -603,11 +881,17 @@ export default function StudentDashboard() {
           )}
 
           {takingQuiz && (
-            <QuizTaker quiz={takingQuiz} studentId={user.id} onComplete={handleQuizComplete} />
+            <QuizTaker
+              quiz={takingQuiz}
+              studentId={user.id}
+              onComplete={handleQuizComplete}
+            />
           )}
 
           {activeTab === "profile" && (
-            <div><Profile /></div>
+            <div>
+              <Profile />
+            </div>
           )}
 
           {activeTab === "complaints" && (
@@ -624,9 +908,14 @@ export default function StudentDashboard() {
           {activeTab === "view-course" && selectedCourse && (
             <CoursePlayer
               course={selectedCourse}
-              isEnrolled={(enrollments || []).some(e => e.userId === user.id && e.courseId === selectedCourse.id)}
+              isEnrolled={(enrollments || []).some(
+                (e) => e.userId === user.id && e.courseId === selectedCourse.id,
+              )}
               onEnroll={enroll}
-              onBack={() => { setSelectedCourse(null); setActiveTab("browse"); }}
+              onBack={() => {
+                setSelectedCourse(null);
+                setActiveTab("browse");
+              }}
               onTopicComplete={handleTopicComplete}
               onUpdateLastActive={updateLastActive}
             />
@@ -648,7 +937,14 @@ function ComplaintForm({ onSubmit }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <textarea className="form-control" rows="4" value={complaint} onChange={(e) => setComplaint(e.target.value)} placeholder="Describe your complaint..." required />
+      <textarea
+        className="form-control"
+        rows="4"
+        value={complaint}
+        onChange={(e) => setComplaint(e.target.value)}
+        placeholder="Describe your complaint..."
+        required
+      />
       <button className="btn btn-warning mt-2">Submit Complaint</button>
     </form>
   );

@@ -1,0 +1,110 @@
+# ===========================================
+# E-Learning Platform – Root .gitignore
+# Covers the whole monorepo (backend + e-app)
+# ===========================================
+
+# -------- Dependencies --------
+node_modules/
+**/node_modules/
+jspm_packages/
+
+# -------- Environment / Secrets --------
+# NEVER commit secrets, credentials, or API keys
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+backend/env/.env
+backend/env/*.env
+!backend/env/.env.example
+
+# Certificates / private keys
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.keystore
+*.jks
+
+# SSH keys
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*_rsa
+*_dsa
+*_ed25519
+known_hosts
+
+# Common credential files
+secrets.json
+secrets.yaml
+secrets.yml
+credentials.json
+credentials.yaml
+credentials.yml
+service-account*.json
+*-secret.json
+*-credentials.json
+*.tfvars
+.npmrc
+.netrc
+auth.json
+
+# -------- Build output --------
+dist/
+build/
+out/
+**/dist/
+**/build/
+
+# -------- Logs --------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# -------- Caches --------
+.cache/
+.parcel-cache/
+.vite/
+.eslintcache
+.npm/
+.yarn/cache/
+.pnpm-store/
+
+# -------- Coverage / Test output --------
+coverage/
+*.lcov
+.nyc_output/
+
+# -------- OS files --------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -------- Editor / IDE --------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# -------- Misc --------
+*.local
+*.tgz
+.tmp/
+tmp/
+temp/
