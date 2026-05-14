@@ -45,7 +45,7 @@ const userSchema = new mongoose.Schema({
       type: String,
       default: 'English'
     },
-    interests: String,
+    interests: [String],
     darkMode: {
       type: Boolean,
       default: false
@@ -66,16 +66,23 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     }
+  },
+  darkModePreference: {
+    type: Boolean,
+    default: false
   }
   ,
   instructorProfile: {
     bio: String,
     qualifications: String,
+    phoneNumber: String,
     profilePicture: String,
     profilePicturePreview: String,
     linkedinUrl: String,
     portfolioUrl: String,
-    subjectExpertise: String,
+    githubUrl: String,
+    twitterUrl: String,
+    subjectExpertise: [String],
     availabilitySlots: String,
     twoFactorAuth: {
       type: Boolean,

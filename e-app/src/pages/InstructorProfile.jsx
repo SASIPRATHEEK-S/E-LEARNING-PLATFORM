@@ -1,939 +1,633 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import "../styles/InstructorProfile.css";
 
-// Instructor Profile page - manage courses, ratings, bio, qualifications and availability
+const DEFAULT_AVATAR = "/default-profile.png";
+const urlPattern = /^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(\/.*)?$/i;
+
 export default function InstructorProfile() {
-  // Get current user and auth functions
-  const { user, logout, updateUserProfile } = useAuth();
-  // Track if user is editing profile
-  const [isEditMode, setIsEditMode] = useState(false);
-  // Track which tab is active
-  const [activeTab, setActiveTab] = useState("information");
-  // Store all instructor data - bio, qualifications, social links, settings
-  const [instructorData, setInstructorData] = useState({
+  const { user, updateUserProfile, refreshUserProfile } = useAuth();
+  const toast = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("instructorDarkMode") === "true");
+  const [expertiseInput, setExpertiseInput] = useState("");
+  const [profileData, setProfileData] = useState({
+    fullName: "",
+    email: "",
     phoneNumber: "",
     bio: "",
-    profilePicture: null,
-    profilePicturePreview: "/default-profile.png",
     qualifications: "",
     linkedinUrl: "",
+    githubUrl: "",
     portfolioUrl: "",
-    twoFactorAuth: false,
-    emailNotifications: true,
-    smsNotifications: false,
-    appNotifications: true,
-    subjectExpertise: "",
-    availabilitySlots: "",
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
+    twitterUrl: "",
+    subjectExpertise: [],
+    profilePicturePreview: DEFAULT_AVATAR,
   });
-
-  const [originalData, setOriginalData] = useState(instructorData);
-  const [message, setMessage] = useState({ type: "", text: "" });
-
-  const [courses, setCourses] = useState([]);
-  const [enrollments, setEnrollments] = useState([]);
-  const [ratings, setRatings] = useState([]);
+  const [originalData, setOriginalData] = useState(profileData);
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    if (!user || (user.role !== "instructor" && user.role !== "admin")) return;
-    const fetchInstructorData = async () => {
-      try {
-        const API_BASE = "http://localhost:5000/api";
-        const [coursesRes, enrollmentsRes, ratingsRes] = await Promise.all([
-          fetch(`${API_BASE}/courses/my`, { credentials: "include" }),
-          fetch(`${API_BASE}/enrollments`, { credentials: "include" }),
-          fetch(`${API_BASE}/ratings`, { credentials: "include" }),
-        ]);
-        if (coursesRes.ok) setCourses(await coursesRes.json());
-        if (enrollmentsRes.ok) setEnrollments(await enrollmentsRes.json());
-        if (ratingsRes.ok) setRatings(await ratingsRes.json());
-      } catch (error) {
-        console.error("Failed to load instructor profile data", error);
-      }
-    };
-    fetchInstructorData();
-  }, [user]);
-
-  const myCourses = courses.filter((course) => course.instructorId === user.id);
-  const myCourseIds = myCourses.map((c) => c.id);
-  const totalStudents = enrollments.filter((e) => myCourseIds.includes(e.courseId)).length;
-  const totalCourses = myCourses.length;
-
-  const myRatings = ratings.filter((r) => myCourseIds.includes(r.courseId));
-  const averageRating = myRatings.length
-    ? myRatings.reduce((sum, r) => sum + (r.instructorRating || 0), 0) / myRatings.length
-    : 0;
-
-  const coursesCreated = myCourses.map((course) => {
-    const courseRatings = ratings.filter((r) => r.courseId === course.id);
-    const avg = courseRatings.length
-      ? courseRatings.reduce((sum, r) => sum + (r.courseRating || 0), 0) / courseRatings.length
-      : 0;
-    return {
-      id: course.id,
-      title: course.title,
-      studentsEnrolled: enrollments.filter((e) => e.courseId === course.id).length,
-      rating: parseFloat(avg.toFixed(1)),
-      reviews: courseRatings.length,
-    };
-  });
-
-  const studentFeedback = myRatings
-    .filter((r) => r.comment)
-    .slice(0, 10)
-    .map((r, idx) => ({
-      id: r.id || idx,
-      studentName: "Student",
-      feedback: r.comment,
-      rating: r.instructorRating || r.courseRating,
-    }));
-
-  const earningsData = {
-    totalStudents,
-    totalCourses,
-    averageRating: Number(averageRating.toFixed(1)),
-  };
-
-  useEffect(() => {
-    if (!user) return;
-    setInstructorData((prev) => ({
-      ...prev,
-      ...(user.instructorProfile || {}),
-      profilePicturePreview:
-        user.instructorProfile?.profilePicturePreview || prev.profilePicturePreview,
-    }));
-    setOriginalData((prev) => ({
-      ...prev,
-      ...(user.instructorProfile || {}),
-      profilePicturePreview:
-        user.instructorProfile?.profilePicturePreview || prev.profilePicturePreview,
-    }));
-  }, [user]);
-
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setInstructorData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-    setMessage({ type: "", text: "" });
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setInstructorData((prev) => ({
-          ...prev,
-          profilePicture: file,
-          profilePicturePreview: reader.result,
-        }));
-      };
-      reader.readAsDataURL(file);
+    const saved = localStorage.getItem("instructorDarkMode");
+    if (saved !== null) {
+      setDarkMode(saved === "true");
     }
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      console.log("No user object available yet");
+      return;
+    }
+
+    console.log("=== LOADING INSTRUCTOR PROFILE ===");
+    console.log("User data:", user);
+    console.log("Instructor profile from user:", user.instructorProfile);
+
+    const instructorProfile = user.instructorProfile || {};
+    const subjectExpertise = Array.isArray(instructorProfile.subjectExpertise)
+      ? instructorProfile.subjectExpertise
+      : typeof instructorProfile.subjectExpertise === "string"
+      ? instructorProfile.subjectExpertise
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+      : [];
+
+    const preview =
+      instructorProfile.profilePicture ||
+      instructorProfile.profilePicturePreview ||
+      DEFAULT_AVATAR;
+
+    const initData = {
+      fullName: user.name || "",
+      email: user.email || "",
+      phoneNumber: instructorProfile.phoneNumber || "",
+      bio: instructorProfile.bio || "",
+      qualifications: instructorProfile.qualifications || "",
+      linkedinUrl: instructorProfile.linkedinUrl || "",
+      githubUrl: instructorProfile.githubUrl || "",
+      portfolioUrl: instructorProfile.portfolioUrl || "",
+      twitterUrl: instructorProfile.twitterUrl || "",
+      subjectExpertise,
+      profilePicturePreview: preview,
+    };
+
+    console.log("Initialized profile data:", initData);
+    setProfileData(initData);
+    setOriginalData(initData);
+  }, [user]);
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark-mode");
+    } else {
+      document.documentElement.classList.remove("dark-mode");
+    }
+    localStorage.setItem("instructorDarkMode", darkMode ? "true" : "false");
+  }, [darkMode]);
+
+  const validateUrl = (value) => {
+    if (!value) return true;
+    return urlPattern.test(value);
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!profileData.fullName.trim()) {
+      newErrors.fullName = "Full name is required.";
+    }
+
+    if (
+      profileData.phoneNumber &&
+      !/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/i.test(profileData.phoneNumber)
+    ) {
+      newErrors.phoneNumber = "Enter a valid phone number.";
+    }
+
+    if (!profileData.bio.trim()) {
+      newErrors.bio = "A short bio is required.";
+    } else if (profileData.bio.length > 420) {
+      newErrors.bio = "Bio must be 420 characters or less.";
+    }
+
+    if (!profileData.qualifications.trim()) {
+      newErrors.qualifications = "Add at least one qualification.";
+    }
+
+    if (!profileData.subjectExpertise.length) {
+      newErrors.subjectExpertise = "Add at least one expertise tag.";
+    }
+
+    ["linkedinUrl", "githubUrl", "portfolioUrl", "twitterUrl"].forEach((field) => {
+      if (!validateUrl(profileData[field])) {
+        newErrors[field] = "Enter a valid URL.";
+      }
+    });
+
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length) {
+      toast.error("Please fix the highlighted fields before saving.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setProfileData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    console.log("File selected:", file.name, "Size:", file.size, "Type:", file.type);
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file.");
+      console.error("Invalid file type:", file.type);
+      return;
+    }
+
+    const maxBytes = 600 * 1024;
+    if (file.size > maxBytes) {
+      toast.error("Image size must be less than 600KB.");
+      console.error("File too large:", file.size, "bytes");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      console.log("File converted to base64, length:", reader.result.length);
+      setProfileData((prev) => {
+        const updated = {
+          ...prev,
+          profilePicturePreview: reader.result,
+        };
+        console.log("Profile data updated with new image preview");
+        return updated;
+      });
+    };
+    reader.onerror = () => {
+      console.error("FileReader error:", reader.error);
+      toast.error("Error reading file.");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const addExpertise = () => {
+    const tag = expertiseInput.trim();
+    if (!tag) return;
+    if (profileData.subjectExpertise.includes(tag)) {
+      toast.error("This expertise tag is already added.");
+      return;
+    }
+    setProfileData((prev) => ({
+      ...prev,
+      subjectExpertise: [...prev.subjectExpertise, tag],
+    }));
+    setExpertiseInput("");
+    setErrors((prev) => ({ ...prev, subjectExpertise: "" }));
+  };
+
+  const removeExpertise = (tag) => {
+    setProfileData((prev) => ({
+      ...prev,
+      subjectExpertise: prev.subjectExpertise.filter((item) => item !== tag),
+    }));
   };
 
   const handleSave = async () => {
+    if (!validateForm()) return;
+    if (!updateUserProfile) return;
+
+    setIsSaving(true);
     try {
-      if (
-        instructorData.newPassword &&
-        instructorData.newPassword !== instructorData.confirmPassword
-      ) {
-        setMessage({ type: "error", text: "Passwords do not match" });
+      // Only include image if it's a base64 string (user uploaded an image)
+      const imageToSend = profileData.profilePicturePreview && profileData.profilePicturePreview.startsWith('data:')
+        ? profileData.profilePicturePreview
+        : undefined;
+      
+      const payload = {
+        name: profileData.fullName,
+        instructorProfile: {
+          phoneNumber: profileData.phoneNumber,
+          bio: profileData.bio,
+          qualifications: profileData.qualifications,
+          linkedinUrl: profileData.linkedinUrl,
+          githubUrl: profileData.githubUrl,
+          portfolioUrl: profileData.portfolioUrl,
+          twitterUrl: profileData.twitterUrl,
+          subjectExpertise: profileData.subjectExpertise,
+        },
+      };
+      
+      // Only add image fields if image was uploaded
+      if (imageToSend) {
+        payload.instructorProfile.profilePicture = imageToSend;
+        payload.instructorProfile.profilePicturePreview = imageToSend;
+      }
+      
+      console.log("=== INSTRUCTOR PROFILE SAVE DEBUG ===");
+      console.log("Payload being sent:", JSON.stringify(payload, null, 2));
+      console.log("User role:", user?.role);
+      console.log("Image included:", !!imageToSend);
+      
+      const updatedUser = await updateUserProfile(payload);
+      
+      console.log("Response from updateUserProfile:", updatedUser);
+      
+      if (!updatedUser) {
+        console.error("updatedUser is null or undefined");
+        toast.error("Failed to save instructor profile. Please try again.");
         return;
       }
-
-      const updated = updateUserProfile
-        ? await updateUserProfile({ instructorProfile: instructorData })
-        : null;
-
-      if (!updated) {
-        setMessage({ type: "error", text: "Failed to update profile" });
-        return;
-      }
-
-      setOriginalData(instructorData);
-      setIsEditMode(false);
-      setMessage({ type: "success", text: "Profile updated successfully!" });
-      setTimeout(() => setMessage({ type: "", text: "" }), 3000);
+      
+      // Force refresh to ensure data is loaded correctly
+      console.log("FORCING PROFILE REFRESH...");
+      await refreshUserProfile();
+      
+      setOriginalData(profileData);
+      setIsEditing(false);
+      toast.success("Instructor profile saved successfully!");
     } catch (error) {
-      setMessage({ type: "error", text: "Failed to update profile" });
+      console.error("Instructor profile save error:", error);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      toast.error("Unable to save profile right now: " + error.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleCancel = () => {
-    setInstructorData(originalData);
-    setIsEditMode(false);
-    setMessage({ type: "", text: "" });
+    setProfileData(originalData);
+    setErrors({});
+    setExpertiseInput("");
+    setIsEditing(false);
   };
 
+  if (!user) {
+    return (
+      <div className="instructor-profile-page">
+        <div className="profile-card empty-state">
+          <h2>Loading instructor profile...</h2>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="instructor-profile-container">
-      {/* Header */}
-      <div className="profile-header">
-        <h1 className="mb-0">
-          <i className="bi bi-briefcase me-2"></i>Instructor Profile
-        </h1>
+    <div className="instructor-profile-page">
+      <div className="profile-header-card">
+        <div>
+          <p className="eyebrow">Instructor Profile</p>
+          <h1>Profile Information</h1>
+          <p className="profile-subtitle">
+            Manage your instructor details, expertise tags, links, and profile image from one modern page.
+          </p>
+        </div>
+        <div className="header-actions">
+          <button
+            className={`mode-toggle ${darkMode ? "active" : ""}`}
+            type="button"
+            onClick={() => setDarkMode((prev) => !prev)}
+          >
+            <i className={`bi bi-moon${darkMode ? "-stars" : ""}`}></i>
+            <span>{darkMode ? "Dark mode" : "Light mode"}</span>
+          </button>
+          {!isEditing && (
+            <button className="btn btn-primary" type="button" onClick={() => setIsEditing(true)}>
+              <i className="bi bi-pencil-square me-2"></i>Edit Profile
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Message Alert */}
-      {message.text && (
-        <div
-          className={`alert alert-${message.type === "success" ? "success" : "danger"} alert-dismissible fade show`}
-          role="alert"
-        >
-          <i
-            className={`bi bi-${message.type === "success" ? "check-circle" : "exclamation-circle"} me-2`}
-          ></i>
-          {message.text}
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => setMessage({ type: "", text: "" })}
-          ></button>
-        </div>
-      )}
+      <div className="profile-card">
+        <div className="profile-grid">
+          <div className="profile-sidebar-panel">
+            <div className="profile-picture-card">
+              <div className="picture-frame">
+                <img
+                  src={profileData.profilePicturePreview || DEFAULT_AVATAR}
+                  alt="Instructor profile"
+                  className="profile-picture"
+                />
+              </div>
+              <div className="picture-actions">
+                <button
+                  type="button"
+                  className="upload-button"
+                  onClick={() => document.getElementById('profile-picture-upload')?.click()}
+                  disabled={!isEditing}
+                >
+                  <i className="bi bi-camera-fill"></i>
+                  <span>{isEditing ? "Upload" : "Change"} picture</span>
+                </button>
+                <input
+                  id="profile-picture-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="file-input"
+                  disabled={!isEditing}
+                />
+              </div>
+            </div>
 
-      <div className="profile-content">
-        {/* Sidebar */}
-        <div className="profile-sidebar">
-          <div className="profile-avatar">
-            <img src={instructorData.profilePicturePreview} alt="Profile" />
-            <div className="avatar-overlay">
-              <span className="badge bg-warning">Instructor</span>
+            <div className="summary-card">
+              <h2>{profileData.fullName || "Instructor"}</h2>
+              <p className="summary-role">Lead Instructor</p>
+              <div className="summary-meta">
+                <div>
+                  <span>Role</span>
+                  <strong>{user.role || "instructor"}</strong>
+                </div>
+                <div>
+                  <span>Email</span>
+                  <strong>{user.email}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="profile-form-panel">
+            <section className="profile-section">
+              <div className="section-heading">
+                <div>
+                  <h3>Core information</h3>
+                  <p>Editable instructor details for your public profile.</p>
+                </div>
+              </div>
+
+              <div className="field-grid">
+                <div className="field-group">
+                  <label className="field-label" htmlFor="fullName">
+                    Full Name
+                  </label>
+                  <input
+                    id="fullName"
+                    name="fullName"
+                    type="text"
+                    className={`field-input ${errors.fullName ? "error" : ""}`}
+                    value={profileData.fullName}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                  />
+                  {errors.fullName && <span className="field-error">{errors.fullName}</span>}
+                </div>
+
+                <div className="field-group">
+                  <label className="field-label" htmlFor="email">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    className="field-input"
+                    value={profileData.email}
+                    disabled
+                  />
+                </div>
+
+                <div className="field-group">
+                  <label className="field-label" htmlFor="phoneNumber">
+                    Phone Number
+                  </label>
+                  <input
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    type="tel"
+                    className={`field-input ${errors.phoneNumber ? "error" : ""}`}
+                    value={profileData.phoneNumber}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    placeholder="+1 555 123 4567"
+                  />
+                  {errors.phoneNumber && <span className="field-error">{errors.phoneNumber}</span>}
+                </div>
+              </div>
+            </section>
+
+            <section className="profile-section">
+              <div className="section-heading">
+                <div>
+                  <h3>About you</h3>
+                  <p>Write a short description that highlights your teaching style.</p>
+                </div>
+              </div>
+
+              <div className="field-group full-width">
+                <label className="field-label" htmlFor="bio">
+                  Bio / Short Description
+                </label>
+                <textarea
+                  id="bio"
+                  name="bio"
+                  className={`field-input ${errors.bio ? "error" : ""}`}
+                  value={profileData.bio}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  rows="4"
+                  placeholder="Share your experience, approach, and what students can expect."
+                />
+                {errors.bio && <span className="field-error">{errors.bio}</span>}
+              </div>
+
+              <div className="field-group full-width">
+                <label className="field-label" htmlFor="qualifications">
+                  Qualifications
+                </label>
+                <textarea
+                  id="qualifications"
+                  name="qualifications"
+                  className={`field-input ${errors.qualifications ? "error" : ""}`}
+                  value={profileData.qualifications}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  rows="3"
+                  placeholder="e.g., PhD in Math, Certified Project Management Professional"
+                />
+                {errors.qualifications && <span className="field-error">{errors.qualifications}</span>}
+              </div>
+            </section>
+
+            <section className="profile-section">
+              <div className="section-heading">
+                <div>
+                  <h3>Expertise tags</h3>
+                  <p>Add the topics you teach so learners can discover your strengths.</p>
+                </div>
+              </div>
+
+              <div className="tag-input-row">
+                <input
+                  type="text"
+                  name="expertise"
+                  value={expertiseInput}
+                  onChange={(e) => setExpertiseInput(e.target.value)}
+                  disabled={!isEditing}
+                  className="field-input"
+                  placeholder="Add a topic and press Enter or Add"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addExpertise();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-outline-primary"
+                  onClick={addExpertise}
+                  disabled={!isEditing}
+                >
+                  Add
+                </button>
+              </div>
+              {errors.subjectExpertise && <span className="field-error">{errors.subjectExpertise}</span>}
+
+              <div className="expertise-tags">
+                {profileData.subjectExpertise.length ? (
+                  profileData.subjectExpertise.map((tag) => (
+                    <span key={tag} className="tag-pill">
+                      {tag}
+                      {isEditing && (
+                        <button
+                          type="button"
+                          className="tag-remove"
+                          onClick={() => removeExpertise(tag)}
+                        >
+                          <i className="bi bi-x-lg"></i>
+                        </button>
+                      )}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-muted">No expertise tags yet.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="profile-section">
+              <div className="section-heading">
+                <div>
+                  <h3>Social links</h3>
+                  <p>Share your public URLs for students and colleagues.</p>
+                </div>
+              </div>
+
+              <div className="field-grid">
+                <div className="field-group">
+                  <label className="field-label" htmlFor="linkedinUrl">
+                    <i className="bi bi-linkedin"></i> LinkedIn
+                  </label>
+                  <input
+                    id="linkedinUrl"
+                    name="linkedinUrl"
+                    type="url"
+                    className={`field-input ${errors.linkedinUrl ? "error" : ""}`}
+                    value={profileData.linkedinUrl}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    placeholder="https://linkedin.com/in/yourprofile"
+                  />
+                  {errors.linkedinUrl && <span className="field-error">{errors.linkedinUrl}</span>}
+                </div>
+
+                <div className="field-group">
+                  <label className="field-label" htmlFor="githubUrl">
+                    <i className="bi bi-github"></i> GitHub
+                  </label>
+                  <input
+                    id="githubUrl"
+                    name="githubUrl"
+                    type="url"
+                    className={`field-input ${errors.githubUrl ? "error" : ""}`}
+                    value={profileData.githubUrl}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    placeholder="https://github.com/yourusername"
+                  />
+                  {errors.githubUrl && <span className="field-error">{errors.githubUrl}</span>}
+                </div>
+              </div>
+
+              <div className="field-grid">
+                <div className="field-group">
+                  <label className="field-label" htmlFor="portfolioUrl">
+                    <i className="bi bi-globe"></i> Portfolio Website
+                  </label>
+                  <input
+                    id="portfolioUrl"
+                    name="portfolioUrl"
+                    type="url"
+                    className={`field-input ${errors.portfolioUrl ? "error" : ""}`}
+                    value={profileData.portfolioUrl}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    placeholder="https://yourportfolio.com"
+                  />
+                  {errors.portfolioUrl && <span className="field-error">{errors.portfolioUrl}</span>}
+                </div>
+
+                <div className="field-group">
+                  <label className="field-label" htmlFor="twitterUrl">
+                    <i className="bi bi-twitter"></i> Twitter / X
+                  </label>
+                  <input
+                    id="twitterUrl"
+                    name="twitterUrl"
+                    type="url"
+                    className={`field-input ${errors.twitterUrl ? "error" : ""}`}
+                    value={profileData.twitterUrl}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    placeholder="https://twitter.com/yourhandle"
+                  />
+                  {errors.twitterUrl && <span className="field-error">{errors.twitterUrl}</span>}
+                </div>
+              </div>
+            </section>
+
+            <div className="action-row">
+              <button
+                type="button"
+                className="btn btn-primary btn-save"
+                onClick={handleSave}
+                disabled={!isEditing || isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-save me-2"></i>Save Changes
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-cancel"
+                onClick={handleCancel}
+                disabled={isSaving}
+              >
+                Cancel
+              </button>
             </div>
           </div>
-          <div className="user-info text-center mb-4">
-            <h4 className="mb-1">{user.name}</h4>
-            <p className="text-muted mb-2">{user.email}</p>
-            <span className="badge bg-warning">Instructor</span>
-            <div className="instructor-rating mt-2">
-              <div className="rating-stars">
-                <i className="bi bi-star-fill text-warning"></i>
-                <i className="bi bi-star-fill text-warning"></i>
-                <i className="bi bi-star-fill text-warning"></i>
-                <i className="bi bi-star-fill text-warning"></i>
-                <i className="bi bi-star-half text-warning"></i>
-              </div>
-              <small>4.8 Rating</small>
-            </div>
-          </div>
-
-          <nav className="profile-nav">
-            <button
-              className={`nav-tab ${activeTab === "information" ? "active" : ""}`}
-              onClick={() => setActiveTab("information")}
-            >
-              <i className="bi bi-person me-2"></i>Profile Info
-            </button>
-            <button
-              className={`nav-tab ${activeTab === "settings" ? "active" : ""}`}
-              onClick={() => setActiveTab("settings")}
-            >
-              <i className="bi bi-gear me-2"></i>Account Settings
-            </button>
-            <button
-              className={`nav-tab ${activeTab === "preferences" ? "active" : ""}`}
-              onClick={() => setActiveTab("preferences")}
-            >
-              <i className="bi bi-lightbulb me-2"></i>Teaching Preferences
-            </button>
-            <button
-              className={`nav-tab ${activeTab === "activity" ? "active" : ""}`}
-              onClick={() => setActiveTab("activity")}
-            >
-              <i className="bi bi-graph-up me-2"></i>Activity & Analytics
-            </button>
-          </nav>
-        </div>
-
-        {/* Main Content */}
-        <div className="profile-main">
-          {/* Profile Information Tab */}
-          {activeTab === "information" && (
-            <div className="tab-content">
-              <div className="section-header">
-                <h3>
-                  <i className="bi bi-person me-2"></i>Profile Information
-                </h3>
-                {!isEditMode && (
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => setIsEditMode(true)}
-                  >
-                    <i className="bi bi-pencil me-2"></i>Edit
-                  </button>
-                )}
-              </div>
-
-              <div className="section-body">
-                {/* Profile Picture */}
-                <div className="form-section">
-                  <label className="form-label fw-bold">Profile Picture</label>
-                  <div className="profile-picture-upload">
-                    {isEditMode ? (
-                      <>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileChange}
-                          className="form-control mb-3"
-                        />
-                        <img
-                          src={instructorData.profilePicturePreview}
-                          alt="Preview"
-                          className="preview-img"
-                        />
-                      </>
-                    ) : (
-                      <img
-                        src={instructorData.profilePicturePreview}
-                        alt="Profile"
-                        className="preview-img"
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Name (Read-only) */}
-                <div className="form-section">
-                  <label className="form-label fw-bold">Name</label>
-                  {isEditMode ? (
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={user.name}
-                      onChange={handleInputChange}
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={user.name || "Not provided"}
-                      disabled
-                    />
-                  )}
-                </div>
-                <div className="form-section">
-                  <label className="form-label fw-bold">Email</label>
-                  {isEditMode ? (
-                    <input
-                      type="email"
-                      className="form-control"
-                      value={user.email}
-                      onChange={handleInputChange}
-                    />
-                  ) : (
-                    <input
-                      type="email"
-                      className="form-control"
-                      value={user.email || "Not provided"}
-                      disabled
-                    />
-                  )}
-                </div>
-
-                {/* Phone Number */}
-                <div className="form-section">
-                  <label className="form-label fw-bold">Phone Number</label>
-                  {isEditMode ? (
-                    <input
-                      type="tel"
-                      name="phoneNumber"
-                      className="form-control"
-                      value={instructorData.phoneNumber}
-                      onChange={handleInputChange}
-                      placeholder="Enter phone number"
-                    />
-                  ) : (
-                    <input
-                      type="tel"
-                      className="form-control"
-                      value={instructorData.phoneNumber || "Not provided"}
-                      disabled
-                    />
-                  )}
-                </div>
-
-                {/* Bio/Description */}
-                <div className="form-section">
-                  <label className="form-label fw-bold">
-                    Bio / Short Description
-                  </label>
-                  {isEditMode ? (
-                    <textarea
-                      name="bio"
-                      className="form-control"
-                      value={instructorData.bio}
-                      onChange={handleInputChange}
-                      placeholder="Tell us about yourself and your teaching experience"
-                      rows="4"
-                    ></textarea>
-                  ) : (
-                    <textarea
-                      className="form-control"
-                      value={instructorData.bio || "Not provided"}
-                      disabled
-                      rows="4"
-                    ></textarea>
-                  )}
-                </div>
-
-                {/* Qualifications */}
-                <div className="form-section">
-                  <label className="form-label fw-bold">Qualifications</label>
-                  <small className="text-muted d-block mb-2">
-                    Degrees, certifications, and credentials (comma-separated)
-                  </small>
-                  {isEditMode ? (
-                    <textarea
-                      name="qualifications"
-                      className="form-control"
-                      value={instructorData.qualifications}
-                      onChange={handleInputChange}
-                      placeholder="e.g., B.Sc Computer Science, AWS Certified Solutions Architect, Oracle Java Certified"
-                      rows="3"
-                    ></textarea>
-                  ) : (
-                    <div className="qualifications-display">
-                      {instructorData.qualifications ? (
-                        <div>
-                          {instructorData.qualifications
-                            .split(",")
-                            .map((qual, index) => (
-                              <span
-                                key={index}
-                                className="badge bg-info me-2 mb-2"
-                              >
-                                {qual.trim()}
-                              </span>
-                            ))}
-                        </div>
-                      ) : (
-                        <p className="text-muted">No qualifications added</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Social Links */}
-                <div className="form-section">
-                  <label className="form-label fw-bold">Social Links</label>
-
-                  {/* LinkedIn */}
-                  <div className="social-link-group mb-3">
-                    <label className="form-label">
-                      <i className="bi bi-linkedin me-2"></i>LinkedIn Profile
-                    </label>
-                    {isEditMode ? (
-                      <input
-                        type="url"
-                        name="linkedinUrl"
-                        className="form-control"
-                        value={instructorData.linkedinUrl}
-                        onChange={handleInputChange}
-                        placeholder="https://linkedin.com/in/yourprofile"
-                      />
-                    ) : (
-                      <>
-                        {instructorData.linkedinUrl ? (
-                          <a
-                            href={instructorData.linkedinUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary"
-                          >
-                            {instructorData.linkedinUrl}
-                          </a>
-                        ) : (
-                          <p className="text-muted">Not provided</p>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Portfolio */}
-                  <div className="social-link-group">
-                    <label className="form-label">
-                      <i className="bi bi-globe me-2"></i>Portfolio Website
-                    </label>
-                    {isEditMode ? (
-                      <input
-                        type="url"
-                        name="portfolioUrl"
-                        className="form-control"
-                        value={instructorData.portfolioUrl}
-                        onChange={handleInputChange}
-                        placeholder="https://yourportfolio.com"
-                      />
-                    ) : (
-                      <>
-                        {instructorData.portfolioUrl ? (
-                          <a
-                            href={instructorData.portfolioUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary"
-                          >
-                            {instructorData.portfolioUrl}
-                          </a>
-                        ) : (
-                          <p className="text-muted">Not provided</p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                {isEditMode && (
-                  <div className="action-buttons">
-                    <button className="btn btn-success" onClick={handleSave}>
-                      <i className="bi bi-check-circle me-2"></i>Save Changes
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={handleCancel}
-                    >
-                      <i className="bi bi-x-circle me-2"></i>Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Account Settings Tab */}
-          {activeTab === "settings" && (
-            <div className="tab-content">
-              <div className="section-header">
-                <h3>
-                  <i className="bi bi-gear me-2"></i>Account Settings
-                </h3>
-                {!isEditMode && (
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => setIsEditMode(true)}
-                  >
-                    <i className="bi bi-pencil me-2"></i>Edit
-                  </button>
-                )}
-              </div>
-
-              <div className="section-body">
-                {/* Change Password */}
-                <div className="settings-group">
-                  <h5 className="mb-3">
-                    <i className="bi bi-lock me-2"></i>Change Password
-                  </h5>
-                  {isEditMode && (
-                    <>
-                      <div className="form-section">
-                        <label className="form-label">Current Password</label>
-                        <input
-                          type="password"
-                          name="currentPassword"
-                          className="form-control"
-                          value={instructorData.currentPassword}
-                          onChange={handleInputChange}
-                          placeholder="Enter current password"
-                        />
-                      </div>
-                      <div className="form-section">
-                        <label className="form-label">New Password</label>
-                        <input
-                          type="password"
-                          name="newPassword"
-                          className="form-control"
-                          value={instructorData.newPassword}
-                          onChange={handleInputChange}
-                          placeholder="Enter new password"
-                        />
-                      </div>
-                      <div className="form-section">
-                        <label className="form-label">Confirm Password</label>
-                        <input
-                          type="password"
-                          name="confirmPassword"
-                          className="form-control"
-                          value={instructorData.confirmPassword}
-                          onChange={handleInputChange}
-                          placeholder="Confirm new password"
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Two-Factor Authentication */}
-                <div className="settings-group">
-                  <h5 className="mb-3">
-                    <i className="bi bi-shield-check me-2"></i>Two-Factor
-                    Authentication
-                  </h5>
-                  {isEditMode ? (
-                    <div className="form-check form-switch">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        name="twoFactorAuth"
-                        id="twoFactorAuth"
-                        checked={instructorData.twoFactorAuth}
-                        onChange={handleInputChange}
-                      />
-                      <label
-                        className="form-check-label"
-                        htmlFor="twoFactorAuth"
-                      >
-                        Enable Two-Factor Authentication
-                      </label>
-                    </div>
-                  ) : (
-                    <p>
-                      <span
-                        className={`badge ${instructorData.twoFactorAuth ? "bg-success" : "bg-secondary"}`}
-                      >
-                        {instructorData.twoFactorAuth ? "Enabled" : "Disabled"}
-                      </span>
-                    </p>
-                  )}
-                </div>
-
-                {/* Notification Preferences */}
-                <div className="settings-group">
-                  <h5 className="mb-3">
-                    <i className="bi bi-bell me-2"></i>Notification Preferences
-                  </h5>
-                  {isEditMode ? (
-                    <>
-                      <div className="form-check mb-2">
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          name="emailNotifications"
-                          id="emailNotifications"
-                          checked={instructorData.emailNotifications}
-                          onChange={handleInputChange}
-                        />
-                        <label
-                          className="form-check-label"
-                          htmlFor="emailNotifications"
-                        >
-                          <i className="bi bi-envelope me-2"></i>Email
-                          Notifications
-                        </label>
-                      </div>
-                      <div className="form-check mb-2">
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          name="smsNotifications"
-                          id="smsNotifications"
-                          checked={instructorData.smsNotifications}
-                          onChange={handleInputChange}
-                        />
-                        <label
-                          className="form-check-label"
-                          htmlFor="smsNotifications"
-                        >
-                          <i className="bi bi-telephone me-2"></i>SMS
-                          Notifications
-                        </label>
-                      </div>
-                      <div className="form-check">
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          name="appNotifications"
-                          id="appNotifications"
-                          checked={instructorData.appNotifications}
-                          onChange={handleInputChange}
-                        />
-                        <label
-                          className="form-check-label"
-                          htmlFor="appNotifications"
-                        >
-                          <i className="bi bi-app-indicator me-2"></i>App
-                          Notifications
-                        </label>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="notification-summary">
-                      <p>
-                        <i
-                          className={`bi ${instructorData.emailNotifications ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger"} me-2`}
-                        ></i>
-                        Email Notifications:{" "}
-                        {instructorData.emailNotifications
-                          ? "Enabled"
-                          : "Disabled"}
-                      </p>
-                      <p>
-                        <i
-                          className={`bi ${instructorData.smsNotifications ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger"} me-2`}
-                        ></i>
-                        SMS Notifications:{" "}
-                        {instructorData.smsNotifications
-                          ? "Enabled"
-                          : "Disabled"}
-                      </p>
-                      <p>
-                        <i
-                          className={`bi ${instructorData.appNotifications ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger"} me-2`}
-                        ></i>
-                        App Notifications:{" "}
-                        {instructorData.appNotifications
-                          ? "Enabled"
-                          : "Disabled"}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Action Buttons */}
-                {isEditMode && (
-                  <div className="action-buttons">
-                    <button className="btn btn-success" onClick={handleSave}>
-                      <i className="bi bi-check-circle me-2"></i>Save Changes
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={handleCancel}
-                    >
-                      <i className="bi bi-x-circle me-2"></i>Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Teaching Preferences Tab */}
-          {activeTab === "preferences" && (
-            <div className="tab-content">
-              <div className="section-header">
-                <h3>
-                  <i className="bi bi-lightbulb me-2"></i>Teaching Preferences
-                </h3>
-                {!isEditMode && (
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => setIsEditMode(true)}
-                  >
-                    <i className="bi bi-pencil me-2"></i>Edit
-                  </button>
-                )}
-              </div>
-
-              <div className="section-body">
-                {/* Subject Expertise */}
-                <div className="form-section">
-                  <label className="form-label fw-bold">
-                    Subject Expertise Tags
-                  </label>
-                  <small className="text-muted d-block mb-2">
-                    Topics you specialize in (comma-separated)
-                  </small>
-                  {isEditMode ? (
-                    <textarea
-                      name="subjectExpertise"
-                      className="form-control"
-                      value={instructorData.subjectExpertise}
-                      onChange={handleInputChange}
-                      placeholder="e.g., React, JavaScript, Web Development, Node.js, MongoDB"
-                      rows="3"
-                    ></textarea>
-                  ) : (
-                    <div className="expertise-display">
-                      {instructorData.subjectExpertise ? (
-                        <div>
-                          {instructorData.subjectExpertise
-                            .split(",")
-                            .map((expertise, index) => (
-                              <span
-                                key={index}
-                                className="badge bg-success me-2 mb-2"
-                              >
-                                {expertise.trim()}
-                              </span>
-                            ))}
-                        </div>
-                      ) : (
-                        <p className="text-muted">No expertise tags added</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Availability Slots */}
-                <div className="form-section">
-                  <label className="form-label fw-bold">
-                    Availability for Live Sessions
-                  </label>
-                  <small className="text-muted d-block mb-2">
-                    Your available time slots for teaching
-                  </small>
-                  {isEditMode ? (
-                    <textarea
-                      name="availabilitySlots"
-                      className="form-control"
-                      value={instructorData.availabilitySlots}
-                      onChange={handleInputChange}
-                      placeholder="e.g., Monday-Friday 2-5 PM, Saturday 10 AM-12 PM, Sunday 6-8 PM"
-                      rows="3"
-                    ></textarea>
-                  ) : (
-                    <div className="availability-display">
-                      {instructorData.availabilitySlots ? (
-                        <div className="availability-slots">
-                          {instructorData.availabilitySlots
-                            .split(",")
-                            .map((slot, index) => (
-                              <span key={index} className="slot-badge">
-                                <i className="bi bi-calendar-event me-2"></i>
-                                {slot.trim()}
-                              </span>
-                            ))}
-                        </div>
-                      ) : (
-                        <p className="text-muted">
-                          No availability slots added
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Action Buttons */}
-                {isEditMode && (
-                  <div className="action-buttons">
-                    <button className="btn btn-success" onClick={handleSave}>
-                      <i className="bi bi-check-circle me-2"></i>Save Changes
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={handleCancel}
-                    >
-                      <i className="bi bi-x-circle me-2"></i>Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Activity & Analytics Tab */}
-          {activeTab === "activity" && (
-            <div className="tab-content">
-              <div className="section-header">
-                <h3>
-                  <i className="bi bi-graph-up me-2"></i>Activity & Analytics
-                </h3>
-              </div>
-
-              <div className="section-body">
-                {/* Statistics */}
-                <div className="activity-section">
-                  <h5 className="mb-3">
-                    <i className="bi bi-bar-chart me-2"></i>Teaching Statistics
-                  </h5>
-                  <div className="stats-grid">
-                    <div className="stat-card">
-                      <div className="stat-value">
-                        {earningsData.totalCourses}
-                      </div>
-                      <div className="stat-label">Courses Created</div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-value">
-                        {earningsData.totalStudents}
-                      </div>
-                      <div className="stat-label">Total Students</div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-value">
-                        {earningsData.averageRating.toFixed(1)}
-                      </div>
-                      <div className="stat-label">Average Rating</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Courses Created */}
-                <div className="activity-section">
-                  <h5 className="mb-3">
-                    <i className="bi bi-book me-2"></i>Courses Created
-                  </h5>
-                  {coursesCreated.length > 0 ? (
-                    <div className="row">
-                      {coursesCreated.map((course) => (
-                        <div key={course.id} className="col-md-4 mb-3">
-                          <div className="card course-card">
-                            <div className="card-body">
-                              <h6 className="card-title">{course.title}</h6>
-                              <div className="course-stats">
-                                <div className="stat">
-                                  <i className="bi bi-people me-2 text-primary"></i>
-                                  <span>
-                                    {course.studentsEnrolled} Students
-                                  </span>
-                                </div>
-                                <div className="stat">
-                                  <i className="bi bi-star-fill me-2 text-warning"></i>
-                                  <span>{course.rating.toFixed(1)}</span>
-                                </div>
-                                <div className="stat">
-                                  <i className="bi bi-chat me-2 text-info"></i>
-                                  <span>{course.reviews} Reviews</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-muted">No courses created yet</p>
-                  )}
-                </div>
-
-                {/* Student Feedback */}
-                <div className="activity-section">
-                  <h5 className="mb-3">
-                    <i className="bi bi-chat-left-quote me-2"></i>Student
-                    Feedback & Ratings
-                  </h5>
-                  {studentFeedback.length > 0 ? (
-                    <div className="feedback-list">
-                      {studentFeedback.map((feedback) => (
-                        <div key={feedback.id} className="feedback-card">
-                          <div className="feedback-header">
-                            <strong>{feedback.studentName}</strong>
-                            <div className="feedback-rating">
-                              {[...Array(feedback.rating)].map((_, i) => (
-                                <i
-                                  key={i}
-                                  className="bi bi-star-fill text-warning"
-                                ></i>
-                              ))}
-                            </div>
-                          </div>
-                          <p className="feedback-text">{feedback.feedback}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-muted">No feedback yet</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
