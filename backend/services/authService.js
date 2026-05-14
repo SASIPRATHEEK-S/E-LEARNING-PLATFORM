@@ -106,13 +106,23 @@ const loginUser = async ({ email, password }) => {
   }
 
   const token = generateToken(user._id);
+  console.log("=== LOGIN USER SERVICE ===");
+  console.log("User email:", user.email);
+  console.log("User role:", user.role);
+  console.log("Instructor profile:", user.instructorProfile);
+  
   return {
     token,
     user: {
+      _id: user._id,
       id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
+      verified: user.verified,
+      profile: user.profile,
+      instructorProfile: user.instructorProfile,
+      darkModePreference: user.darkModePreference,
     },
   };
 };

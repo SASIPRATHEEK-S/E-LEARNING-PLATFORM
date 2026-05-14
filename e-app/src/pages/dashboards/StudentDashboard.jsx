@@ -6,7 +6,6 @@ import Profile from "../Profile";
 import CourseList from "../../components/courses/CourseList";
 import CoursePlayer from "../../components/courses/CoursePlayer";
 import QuizTaker from "../../components/quizzes/QuizTaker";
-import StudentOwnPerformanceDashboard from "../../components/StudentOwnPerformanceDashboard";
 
 // Student Dashboard - shows courses, progress, quizzes and ratings
 export default function StudentDashboard() {
@@ -869,6 +868,7 @@ export default function StudentDashboard() {
             </div>
           )}
 
+<<<<<<< HEAD
           {activeTab === "performance" && (
             <StudentOwnPerformanceDashboard
               user={user}
@@ -880,6 +880,8 @@ export default function StudentDashboard() {
             />
           )}
 
+=======
+>>>>>>> fork/main
           {takingQuiz && (
             <QuizTaker
               quiz={takingQuiz}
