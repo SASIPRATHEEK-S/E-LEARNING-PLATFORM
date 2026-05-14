@@ -4,7 +4,6 @@ import { useToast } from "../../context/ToastContext";
 import Navbar from "../../components/layout/Navbar";
 import CourseCard from "../../components/courses/CourseCard";
 import CoursePlayer from "../../components/courses/CoursePlayer";
-import StudentPerformanceDashboard from "../../components/StudentPerformanceDashboard";
 
 const API_BASE = "http://localhost:5000/api";
 
@@ -14,15 +13,21 @@ export default function AdminDashboard() {
   const [selectedInstructor, setSelectedInstructor] = useState(null);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [selectedCourseForStudent, setSelectedCourseForStudent] = useState(null);
 
+<<<<<<< HEAD
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [courseProgress, setCourseProgress] = useState({});
   const [quizAttempts, setQuizAttempts] = useState([]);
+=======
+  // Data
+  const [courses, setCourses] = useState(() => JSON.parse(localStorage.getItem("APP_COURSES") || "[]"));
+  const [enrollments, setEnrollments] = useState(() => JSON.parse(localStorage.getItem("APP_ENROLLMENTS") || "[]"));
+  const [quizzes, setQuizzes] = useState(() => JSON.parse(localStorage.getItem("APP_QUIZZES") || "[]"));
+  const [complaints, setComplaints] = useState(() => JSON.parse(localStorage.getItem("APP_COMPLAINTS") || "[]"));
+>>>>>>> fork/main
 
   const fetchAll = useCallback(async () => {
     try {
@@ -309,6 +314,7 @@ export default function AdminDashboard() {
                           </tr>
                         </thead>
                         <tbody>
+<<<<<<< HEAD
                           {enrollments
                             .filter((e) =>
                               courses.some(
@@ -344,6 +350,21 @@ export default function AdminDashboard() {
                                 </tr>
                               );
                             })}
+=======
+                          {enrollments.filter(e => courses.some(c => c.instructorId === selectedInstructor && c.id === e.courseId)).map((enrollItem, idx) => {
+                            const student = users.find(u => u.id === enrollItem.userId);
+                            const course = courses.find(c => c.id === enrollItem.courseId);
+                            if (!student || !course) return null;
+                            return (
+                              <tr key={`i-${idx}`}>
+                                <td>{student.id}</td>
+                                <td>{student.name}</td>
+                                <td>{course.title}</td>
+                                <td><button className="btn btn-sm btn-outline-primary" disabled>View</button></td>
+                              </tr>
+                            );
+                          })}
+>>>>>>> fork/main
                         </tbody>
                       </table>
                     </div>
@@ -351,6 +372,7 @@ export default function AdminDashboard() {
                 </div>
               )}
 
+<<<<<<< HEAD
               {selectedStudent && selectedCourseForStudent && (
                 <StudentPerformanceDashboard
                   student={selectedStudent}
@@ -366,6 +388,9 @@ export default function AdminDashboard() {
                 />
               )}
 
+=======
+              {/* --- STUDENTS SECTION --- */}
+>>>>>>> fork/main
               <div className="card shadow-sm border-0">
                 <div className="card-header bg-secondary text-white fw-bold">
                   <i className="bi bi-people me-2"></i> Registered Students
