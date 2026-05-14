@@ -868,7 +868,6 @@ export default function StudentDashboard() {
             </div>
           )}
 
-<<<<<<< HEAD
           {activeTab === "performance" && (
             <StudentOwnPerformanceDashboard
               user={user}
@@ -880,8 +879,6 @@ export default function StudentDashboard() {
             />
           )}
 
-=======
->>>>>>> fork/main
           {takingQuiz && (
             <QuizTaker
               quiz={takingQuiz}
