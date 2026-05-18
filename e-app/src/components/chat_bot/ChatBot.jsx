@@ -248,15 +248,13 @@ const styles = {
     backgroundColor: "#f8f9fa",
   },
   message: {
-    maxWidth: "75%",
-    padding: "8px 12px",
-    borderRadius: 8,
-    fontSize: 14,
-    lineHeight: "1.4",
-    display: "flex",
-    alignItems: "flex-end",
-    gap: "6px",
-    wordWrap: "break-word",
+    maxWidth: "100%",
+    width:"fit-content",
+    padding:"6px 10px",
+    borderRadius:6,
+    fontSize:14,
+    display:"inline-block",
+    wordBreak:"break-word"
   },
   speakBtn: {
     background: "none",
