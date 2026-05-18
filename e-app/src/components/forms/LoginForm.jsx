@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -8,15 +8,67 @@ import ForgotPasswordForm from "./ForgotPasswordForm";
 export default function LoginForm() {
   // State to store email and password input
   const [form, setForm] = useState({ email: "", password: "" });
+  const [errors, setErrors] = useState({});
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const navigate = useNavigate();
   // Get login function and error from auth context
-  const { login, error } = useAuth();
+  const { login, error, clearError } = useAuth();
   const toast = useToast();
 
+  const validateField = (name, value) => {
+    switch (name) {
+      case "email":
+        if (!value) {
+          return "Email is required.";
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          return "Please enter a valid email address.";
+        }
+        return "";
+      case "password":
+        if (!value) {
+          return "Password is required.";
+        }
+        if (value.length < 6) {
+          return "Password must be at least 6 characters.";
+        }
+        return "";
+      default:
+        return "";
+    }
+  };
+
+  const handleBlur = (name, value) => {
+    const fieldError = validateField(name, value);
+    setErrors((prev) => ({ ...prev, [name]: fieldError }));
+  };
+
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
+
   // Handle form submission - validate and login user
+  const validateForm = () => {
+    const newErrors = {};
+    if (!form.email) {
+      newErrors.email = "Email is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      newErrors.email = "Please enter a valid email address.";
+    }
+    if (!form.password) {
+      newErrors.password = "Password is required.";
+    } else if (form.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters.";
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!validateForm()) {
+      return;
+    }
     login(form).then((user) => {
       // If login successful, redirect to user's dashboard based on role
       if (user) {
@@ -51,10 +103,21 @@ export default function LoginForm() {
           placeholder="Email"
           type="email"
           value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          onChange={(e) => {
+            const value = e.target.value;
+            setForm({ ...form, email: value });
+            if (errors.email) {
+              setErrors((prev) => ({ ...prev, email: "" }));
+            }
+            if (error) {
+              clearError();
+            }
+          }}
+          onBlur={(e) => handleBlur("email", e.target.value)}
           required
         />
       </div>
+      {errors.email && <div className="text-danger small mt-1">{errors.email}</div>}
 
       {/* Password input field */}
       <div className="input-group mb-2">
@@ -66,10 +129,21 @@ export default function LoginForm() {
           placeholder="Password"
           type="password"
           value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          onChange={(e) => {
+            const value = e.target.value;
+            setForm({ ...form, password: value });
+            if (errors.password) {
+              setErrors((prev) => ({ ...prev, password: "" }));
+            }
+            if (error) {
+              clearError();
+            }
+          }}
+          onBlur={(e) => handleBlur("password", e.target.value)}
           required
         />
       </div>
+      {errors.password && <div className="text-danger small mt-1">{errors.password}</div>}
 
       {/* Forgot Password link */}
       <div className="text-end mb-2">

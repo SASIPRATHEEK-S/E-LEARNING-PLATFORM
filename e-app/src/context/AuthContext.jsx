@@ -1,4 +1,4 @@
-import { createContext, useReducer, useEffect, useContext } from "react";
+import { createContext, useReducer, useEffect, useContext, useCallback } from "react";
 import { authReducer, initialAuthState } from "./authReducer";
 
 const API_BASE = "http://localhost:5000/api";
@@ -153,6 +153,10 @@ export function AuthProvider({ children }) {
       dispatch({ type: "LOGOUT" });
     }
   };
+
+  const clearError = useCallback(() => {
+    dispatch({ type: "CLEAR_ERROR" });
+  }, []);
 
   const updateUserProfile = async (profileData) => {
     dispatch({ type: "SET_LOADING", payload: true });
@@ -330,6 +334,7 @@ export function AuthProvider({ children }) {
         verifyOTP,
         login,
         logout,
+          clearError,
         updateUserProfile,
         refreshUserProfile,
         sendForgotPasswordOtp,

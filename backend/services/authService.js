@@ -16,7 +16,7 @@ const generateOtp = () => {
 const sendSignupOtp = async ({ name, email, password, role }) => {
   const existingUser = await findUserByEmail(email);
   if (existingUser && existingUser.verified) {
-    const error = new Error('User already exists');
+    const error = new Error('Email already registered');
     error.status = 400;
     throw error;
   }
@@ -89,7 +89,7 @@ const verifySignupOtp = async ({ email, otp }) => {
 const loginUser = async ({ email, password }) => {
   const user = await findUserByEmail(email);
   if (!user) {
-    const error = new Error('Invalid credentials');
+    const error = new Error('Email is not registered');
     error.status = 400;
     throw error;
   }
@@ -100,7 +100,7 @@ const loginUser = async ({ email, password }) => {
   }
   const isMatch = await user.comparePassword(password);
   if (!isMatch) {
-    const error = new Error('Invalid credentials');
+    const error = new Error('Incorrect password');
     error.status = 400;
     throw error;
   }
