@@ -1,155 +1,447 @@
-import { useState } from "react";
-import Micro from "./Micro";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useChatBot } from "../../context/ChatBotContext";
+import "./ChatBot.css";
 
-// ChatBot component - floating chat widget for user support
+const RAG_API_URL = import.meta.env.VITE_RAG_API_URL;
+const REQUEST_TIMEOUT_MS = 90_000;
+
+const SUGGESTED_QUESTIONS = [
+  "What courses are available on the platform?",
+  "How do I enroll in a course?",
+  "How does grading and progress tracking work?",
+  "Can you recommend a course for a beginner?",
+];
+
+const formatTime = (date) =>
+  date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+let messageIdCounter = 0;
+const nextId = () => `msg-${++messageIdCounter}`;
+
 export function ChatBot() {
-  // Track if chat window is open/closed
-  const [open, setOpen] = useState(false);
-  // Store user's current message input
-  const [message, setMessage] = useState("");
-  // Store all messages in conversation (user and bot)
-  const [messages, setMessages] = useState([
-    { from: "bot", text: "Hi! How can I help you?" },
-  ]);
+  const { isOpen, setIsOpen } = useChatBot();
 
-  // Send message from user
-  const sendMessage = () => {
-    if (!message.trim()) return;
-    setMessages([...messages, { from: "user", text: message }]);
-    setMessage("");
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [isSending, setIsSending] = useState(false);
+  const [hasShownColdStartNotice, setHasShownColdStartNotice] = useState(false);
+
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
+  const abortControllerRef = useRef(null);
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isSending]);
+
+  // Focus textarea when chat opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => textareaRef.current?.focus(), 80);
+    }
+  }, [isOpen]);
+
+  // Cancel any in-flight request when component unmounts
+  useEffect(() => () => abortControllerRef.current?.abort(), []);
+
+  // Auto-resize textarea to content
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+  }, [input]);
+
+  const isFirstMessage = useMemo(
+    () => !messages.some((m) => m.from === "user"),
+    [messages]
+  );
+
+  const sendQuery = useCallback(
+    async (query) => {
+      const trimmed = query.trim();
+      if (!trimmed || isSending) return;
+
+      if (!RAG_API_URL) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId(),
+            from: "user",
+            text: trimmed,
+            timestamp: new Date(),
+          },
+          {
+            id: nextId(),
+            from: "bot",
+            text: "Chatbot is not configured. Missing VITE_RAG_API_URL in environment.",
+            timestamp: new Date(),
+            error: true,
+          },
+        ]);
+        return;
+      }
+
+      const userMsg = {
+        id: nextId(),
+        from: "user",
+        text: trimmed,
+        timestamp: new Date(),
+      };
+      const pendingId = nextId();
+      const pendingMsg = {
+        id: pendingId,
+        from: "bot",
+        text: "",
+        timestamp: new Date(),
+        pending: true,
+      };
+
+      const showColdNotice = isFirstMessage && !hasShownColdStartNotice;
+      if (showColdNotice) setHasShownColdStartNotice(true);
+
+      setMessages((prev) => [...prev, userMsg, pendingMsg]);
+      setInput("");
+      setIsSending(true);
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      const timeoutId = setTimeout(
+        () => controller.abort(new DOMException("timeout", "AbortError")),
+        REQUEST_TIMEOUT_MS
+      );
+
+      try {
+        const res = await fetch(`${RAG_API_URL}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: trimmed }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Server responded with ${res.status}`);
+        }
+        const data = await res.json();
+        const replyText =
+          (data && typeof data.response === "string" && data.response.trim()) ||
+          "I received an empty response. Please try rephrasing your question.";
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingId
+              ? { ...m, text: replyText, pending: false, timestamp: new Date() }
+              : m
+          )
+        );
+      } catch (err) {
+        const isTimeout = err?.name === "AbortError";
+        const errorText = isTimeout
+          ? "The assistant is taking longer than expected to respond. It may be waking up from sleep — please try again in a moment."
+          : "Sorry, I couldn't reach the assistant. Please check your connection and try again.";
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingId
+              ? {
+                  ...m,
+                  text: errorText,
+                  pending: false,
+                  error: true,
+                  timestamp: new Date(),
+                }
+              : m
+          )
+        );
+      } finally {
+        clearTimeout(timeoutId);
+        abortControllerRef.current = null;
+        setIsSending(false);
+      }
+    },
+    [isSending, isFirstMessage, hasShownColdStartNotice]
+  );
+
+  const handleSendClick = () => sendQuery(input);
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendClick();
+    }
+  };
+
+  const handleClearChat = () => {
+    abortControllerRef.current?.abort();
+    setMessages([]);
+    setIsSending(false);
+    setHasShownColdStartNotice(false);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  };
+
+  const handleSuggestionClick = (text) => {
+    if (!isSending) sendQuery(text);
+  };
+
+  // ---- Voice input (existing capability preserved) ----
+  const startVoiceInput = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
+      recorder.onstart = () => setIsRecording(true);
+      recorder.onstop = () => {
+        setIsRecording(false);
+        audioChunksRef.current = [];
+        setInput((prev) =>
+          prev ? `${prev} [voice note] ` : "[voice note] "
+        );
+        textareaRef.current?.focus();
+      };
+
+      recorder.start();
+    } catch (err) {
+      console.error("Microphone error:", err);
+      alert("Unable to access microphone. Please check permissions.");
+    }
+  };
+
+  const stopVoiceInput = () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && isRecording) {
+      recorder.stop();
+      recorder.stream.getTracks().forEach((t) => t.stop());
+    }
+  };
+
+  // ---- Text-to-speech ----
+  const speakMessage = (text) => {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1;
+    utter.pitch = 1;
+    utter.volume = 1;
+    window.speechSynthesis.speak(utter);
+  };
+
+  const copyToClipboard = (text) => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
   };
 
   return (
-    <div>
-      {/* Floating Bot Button */}
-      <div style={styles.fab} onClick={() => setOpen(!open)}>
-        {open ? "×" : "💬"}
-      </div>
+    <>
+      <button
+        type="button"
+        className={`tara-fab${isOpen ? " is-open" : ""}`}
+        onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? "Close chat assistant" : "Open chat assistant"}
+        aria-expanded={isOpen}
+      >
+        <i className={`bi ${isOpen ? "bi-x-lg" : "bi-chat-dots-fill"}`} />
+      </button>
 
-      {/* Chat Window */}
-      {open && (
-        <div style={styles.chatWindow}>
-          <div style={styles.header}>Ask Me</div>
-
-          <div style={styles.messages}>
-            {messages.map((m, i) => (
-              <div
-                key={i}
-                style={{
-                  ...styles.message,
-                  alignSelf: m.from === "user" ? "flex-end" : "flex-start",
-                  background: m.from === "user" ? "green" : "#e5e5ea",
-                  color: m.from === "user" ? "#fff" : "#000",
-                }}
+      {isOpen && (
+        <section
+          className="tara-window"
+          role="dialog"
+          aria-label="Course assistant chat"
+        >
+          <header className="tara-header">
+            <div className="tara-avatar" aria-hidden="true">
+              <i className="bi bi-robot" />
+              <span className="tara-status-dot" />
+            </div>
+            <div className="tara-header-info">
+              <span className="tara-title">Tara</span>
+              <span className="tara-subtitle">AI Course Assistant • Online</span>
+            </div>
+            <div className="tara-header-actions">
+              <button
+                type="button"
+                className="tara-icon-btn"
+                onClick={handleClearChat}
+                disabled={messages.length === 0 && !isSending}
+                title="Clear conversation"
+                aria-label="Clear conversation"
               >
-                {m.text}
+                <i className="bi bi-arrow-clockwise" />
+              </button>
+              <button
+                type="button"
+                className="tara-icon-btn"
+                onClick={() => setIsOpen(false)}
+                title="Close"
+                aria-label="Close chat"
+              >
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
+          </header>
+
+          <div className="tara-messages" role="log" aria-live="polite">
+            {messages.length === 0 ? (
+              <div className="tara-welcome">
+                <div className="tara-welcome-emoji" aria-hidden="true">
+                  <i className="bi bi-stars" style={{ color: "#20c997" }} />
+                </div>
+                <div className="tara-welcome-title">Hi, I'm Tara</div>
+                <div className="tara-welcome-sub">
+                  Ask me anything about the platform's courses, enrollment, or
+                  how to get started.
+                </div>
+                <div className="tara-suggestions">
+                  {SUGGESTED_QUESTIONS.map((q) => (
+                    <button
+                      type="button"
+                      key={q}
+                      className="tara-suggestion"
+                      onClick={() => handleSuggestionClick(q)}
+                    >
+                      <i
+                        className="bi bi-chat-right-text"
+                        style={{ marginRight: 6 }}
+                      />
+                      {q}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))}
+            ) : (
+              <>
+                {isSending && !hasShownColdStartNotice && (
+                  <div className="tara-notice">
+                    <i className="bi bi-info-circle" />
+                    <span>
+                      First response may take 30–60s while the assistant warms
+                      up.
+                    </span>
+                  </div>
+                )}
+                {messages.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`tara-msg-row from-${m.from}${
+                      m.error ? " is-error" : ""
+                    }`}
+                  >
+                    <div className="tara-msg-avatar" aria-hidden="true">
+                      <i
+                        className={`bi ${
+                          m.from === "bot" ? "bi-robot" : "bi-person-fill"
+                        }`}
+                      />
+                    </div>
+                    <div className="tara-msg-content">
+                      <div className="tara-bubble">
+                        {m.pending ? (
+                          <span
+                            className="tara-typing"
+                            aria-label="Assistant is typing"
+                          >
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                        ) : (
+                          m.text
+                        )}
+                      </div>
+                      {!m.pending && (
+                        <div className="tara-msg-meta">
+                          <span>{formatTime(m.timestamp)}</span>
+                          {m.from === "bot" && !m.error && (
+                            <>
+                              <button
+                                type="button"
+                                className="tara-meta-btn"
+                                onClick={() => speakMessage(m.text)}
+                                title="Read aloud"
+                              >
+                                <i className="bi bi-volume-up" />
+                              </button>
+                              <button
+                                type="button"
+                                className="tara-meta-btn"
+                                onClick={() => copyToClipboard(m.text)}
+                                title="Copy"
+                              >
+                                <i className="bi bi-clipboard" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+            <div ref={messagesEndRef} />
           </div>
 
-          <div style={styles.inputArea}>
-            <input
-              style={styles.input}
-              placeholder="Type a message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          <div className="tara-input-area">
+            <textarea
+              ref={textareaRef}
+              className="tara-textarea"
+              rows={1}
+              placeholder={
+                isSending ? "Waiting for response..." : "Ask Tara anything..."
+              }
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isSending}
+              aria-label="Message"
             />
             <button
-              style={{
-                borderRadius: "30px",
-                borderWidth: "1px",
-                backgroundColor: "white",
-                padding: "5px",
-              }}
+              type="button"
+              className={`tara-input-btn tara-mic-btn${
+                isRecording ? " is-recording" : ""
+              }`}
+              onClick={isRecording ? stopVoiceInput : startVoiceInput}
+              title={isRecording ? "Stop recording" : "Voice input"}
+              aria-label={isRecording ? "Stop recording" : "Start voice input"}
+              disabled={isSending}
             >
-              <Micro />
+              <i
+                className={`bi ${
+                  isRecording ? "bi-stop-circle-fill" : "bi-mic-fill"
+                }`}
+              />
             </button>
-
-            <button style={styles.sendBtn} onClick={sendMessage}>
-              {" "}
-              →
+            <button
+              type="button"
+              className="tara-input-btn tara-send-btn"
+              onClick={handleSendClick}
+              disabled={isSending || !input.trim()}
+              title="Send message"
+              aria-label="Send message"
+            >
+              <i
+                className={`bi ${
+                  isSending ? "bi-hourglass-split" : "bi-send-fill"
+                }`}
+              />
             </button>
           </div>
-        </div>
+          <div className="tara-footer-hint">
+            Press Enter to send • Shift+Enter for new line
+          </div>
+        </section>
       )}
-    </div>
+    </>
   );
 }
 
-const styles = {
-  fab: {
-    position: "fixed",
-    bottom: 20,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: "50%",
-    background: "green",
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 24,
-    cursor: "pointer",
-    boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
-    zIndex: 1000,
-  },
-  chatWindow: {
-    position: "fixed",
-    bottom: 90,
-    right: 20,
-    width: 300,
-    height: 400,
-    background: "beige",
-    borderRadius: 10,
-    boxShadow: "0 4px 18px rgba(0,0,0,0.3)",
-    display: "flex",
-    flexDirection: "column",
-    zIndex: 1000,
-  },
-  header: {
-    padding: 10,
-    background: "green",
-    color: "#fff",
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  messages: {
-    flex: 1,
-    padding: 10,
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  message: {
-    maxWidth: "75%",
-    padding: "6px 10px",
-    borderRadius: 6,
-    fontSize: 14,
-  },
-  inputArea: {
-    display: "flex",
-    borderTop: "1px solid #ddd",
-  },
-  input: {
-    flex: 1,
-    border: "none",
-    padding: 8,
-    outline: "none",
-    borderRadius: "25px",
-  },
-
-  sendBtn: {
-    fontsize: "30px",
-    padding: "5px",
-    border: "1px",
-    borderRadius: "50%",
-    backgroundColor: "green",
-    color: " #fff",
-  },
-};
 export default ChatBot;
