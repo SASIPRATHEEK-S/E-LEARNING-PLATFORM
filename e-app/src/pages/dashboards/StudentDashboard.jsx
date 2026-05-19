@@ -903,10 +903,7 @@ export default function StudentDashboard() {
               </div>
             </div>
           )}
-<<<<<<< HEAD
 
-=======
->>>>>>> a39aab1cf8f56340a8370880a8953898f4433551
           {activeTab === "performance" && (
             <StudentOwnPerformanceDashboard
               user={user}
@@ -917,10 +914,7 @@ export default function StudentDashboard() {
               courseRatings={courseRatings}
             />
           )}
-<<<<<<< HEAD
 
-=======
->>>>>>> a39aab1cf8f56340a8370880a8953898f4433551
           {takingQuiz && (
             <QuizTaker
               quiz={takingQuiz}

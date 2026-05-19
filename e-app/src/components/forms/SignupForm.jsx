@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -19,10 +19,76 @@ export default function SignupForm() {
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
   // Get auth functions and state from auth context
-  const { sendOTP, verifyOTP, error, message, loading } = useAuth();
+  const { sendOTP, verifyOTP, error, message, loading, clearError } = useAuth();
   const toast = useToast();
   // Get chatbot function from chatbot context
   const { openChatBot } = useChatBot();
+
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
+
+  const validateField = (name, value) => {
+    switch (name) {
+      case "name":
+        if (!value.trim()) {
+          return "Name is required.";
+        }
+        if (value.trim().length <= 4) {
+          return "Name must be more than 4 characters.";
+        }
+        if (!/^[a-zA-Z0-9\s]+$/.test(value.trim())) {
+          return "Name must contain only letters, digits and spaces.";
+        }
+        return "";
+      case "email":
+        if (!value.trim()) {
+          return "Email is required.";
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          return "Please enter a valid email address.";
+        }
+        return "";
+      case "password":
+        if (!value) {
+          return "Password is required.";
+        }
+        if (value.length < 6) {
+          return "Password must be at least 6 characters.";
+        }
+        return "";
+      case "confirmPassword":
+        if (!value) {
+          return "Please confirm your password.";
+        }
+        if (value !== form.password) {
+          return "Passwords do not match.";
+        }
+        return "";
+      case "role":
+        if (!["student", "instructor", "admin"].includes(value)) {
+          return "Please select a valid role.";
+        }
+        return "";
+      default:
+        return "";
+    }
+  };
+
+  const handleFieldChange = (name, value) => {
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+    if (error) {
+      clearError();
+    }
+  };
+
+  const handleBlur = (name, value) => {
+    const fieldError = validateField(name, value);
+    setErrors((prev) => ({ ...prev, [name]: fieldError }));
+  };
 
   // Handle form submission - send OTP
   const handleSendOTP = (e) => {
@@ -142,7 +208,8 @@ export default function SignupForm() {
           className="form-control"
           placeholder="Name"
           value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          onChange={(e) => handleFieldChange("name", e.target.value)}
+          onBlur={(e) => handleBlur("name", e.target.value)}
           required
         />
       </div>
@@ -157,7 +224,8 @@ export default function SignupForm() {
           placeholder="Email"
           type="email"
           value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          onChange={(e) => handleFieldChange("email", e.target.value)}
+          onBlur={(e) => handleBlur("email", e.target.value)}
           required
         />
       </div>
@@ -172,7 +240,8 @@ export default function SignupForm() {
           placeholder="Password"
           type="password"
           value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          onChange={(e) => handleFieldChange("password", e.target.value)}
+          onBlur={(e) => handleBlur("password", e.target.value)}
           required
         />
       </div>
@@ -187,9 +256,8 @@ export default function SignupForm() {
           placeholder="Confirm Password"
           type="password"
           value={form.confirmPassword}
-          onChange={(e) =>
-            setForm({ ...form, confirmPassword: e.target.value })
-          }
+          onChange={(e) => handleFieldChange("confirmPassword", e.target.value)}
+          onBlur={(e) => handleBlur("confirmPassword", e.target.value)}
           required
         />
       </div>
@@ -198,7 +266,8 @@ export default function SignupForm() {
       <select
         className="form-control mt-2"
         value={form.role}
-        onChange={(e) => setForm({ ...form, role: e.target.value })}
+        onChange={(e) => handleFieldChange("role", e.target.value)}
+        onBlur={(e) => handleBlur("role", e.target.value)}
       >
         <option value="student">Student</option>
         <option value="instructor">Instructor</option>

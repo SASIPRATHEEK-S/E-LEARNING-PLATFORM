@@ -42,6 +42,10 @@ export function authReducer(state, action) {
     case "SET_ERROR":
       return { ...state, error: action.payload, loading: false, message: null };
 
+    // Clear any existing authentication error message
+    case "CLEAR_ERROR":
+      return { ...state, error: null };
+
     // Set loading state
     case "SET_LOADING":
       return { ...state, loading: action.payload };
