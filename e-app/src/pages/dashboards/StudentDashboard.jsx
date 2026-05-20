@@ -903,6 +903,7 @@ export default function StudentDashboard() {
               </div>
             </div>
           )}
+
           {activeTab === "performance" && (
             <StudentOwnPerformanceDashboard
               user={user}
@@ -913,6 +914,7 @@ export default function StudentDashboard() {
               courseRatings={courseRatings}
             />
           )}
+
           {takingQuiz && (
             <QuizTaker
               quiz={takingQuiz}

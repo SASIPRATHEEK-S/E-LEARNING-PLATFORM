@@ -1,318 +1,491 @@
-import { useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChatBot } from "../../context/ChatBotContext";
+import "./ChatBot.css";
 
-// ChatBot component - floating chat widget for user support
+const RAG_API_URL = import.meta.env.VITE_RAG_API_URL;
+const REQUEST_TIMEOUT_MS = 90_000;
+
+const SUGGESTED_QUESTIONS = [
+  "What courses are available on the platform?",
+  "How do I enroll in a course?",
+  "How does grading and progress tracking work?",
+  "Can you recommend a course for a beginner?",
+];
+
+const formatTime = (date) =>
+  date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+let messageIdCounter = 0;
+const nextId = () => `msg-${++messageIdCounter}`;
+
 export function ChatBot() {
-  // Track if chat window is open/closed - use context
   const { isOpen, setIsOpen } = useChatBot();
-  // Store user's current message input
-  const [message, setMessage] = useState("");
-  // Store all messages in conversation (user and bot)
-  const [messages, setMessages] = useState([
-    { from: "bot", text: "Hi! How can I help you?" },
-  ]);
-  // Voice recording states
+
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [isSending, setIsSending] = useState(false);
+  const [hasShownColdStartNotice, setHasShownColdStartNotice] = useState(false);
+
   const [isRecording, setIsRecording] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const recognitionRef = useRef(null);
+  const baselineInputRef = useRef("");
+  const finalTranscriptRef = useRef("");
 
-  // Start voice recording
-  const startVoiceInput = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
-      };
+  // Auto-scroll to latest message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isSending]);
 
-      mediaRecorder.onstart = () => {
-        setIsRecording(true);
-      };
+  // Focus textarea when chat opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => textareaRef.current?.focus(), 80);
+    }
+  }, [isOpen]);
 
-      mediaRecorder.onstop = () => {
-        setIsRecording(false);
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        // In a real app, you would send this to a speech-to-text API
-        // For now, we'll add a placeholder message
+  // Cancel any in-flight request when component unmounts
+  useEffect(() => () => abortControllerRef.current?.abort(), []);
+
+  // Auto-resize textarea to content
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+  }, [input]);
+
+  const isFirstMessage = useMemo(
+    () => !messages.some((m) => m.from === "user"),
+    [messages]
+  );
+
+  const sendQuery = useCallback(
+    async (query) => {
+      const trimmed = query.trim();
+      if (!trimmed || isSending) return;
+
+      if (!RAG_API_URL) {
         setMessages((prev) => [
           ...prev,
-          { from: "user", text: "[Voice message received]" },
+          {
+            id: nextId(),
+            from: "user",
+            text: trimmed,
+            timestamp: new Date(),
+          },
+          {
+            id: nextId(),
+            from: "bot",
+            text: "Chatbot is not configured. Missing VITE_RAG_API_URL in environment.",
+            timestamp: new Date(),
+            error: true,
+          },
         ]);
-        audioChunksRef.current = [];
+        return;
+      }
+
+      const userMsg = {
+        id: nextId(),
+        from: "user",
+        text: trimmed,
+        timestamp: new Date(),
+      };
+      const pendingId = nextId();
+      const pendingMsg = {
+        id: pendingId,
+        from: "bot",
+        text: "",
+        timestamp: new Date(),
+        pending: true,
       };
 
-      mediaRecorder.start();
-    } catch (error) {
-      console.error("Error accessing microphone:", error);
-      alert("Unable to access microphone. Please check permissions.");
+      const showColdNotice = isFirstMessage && !hasShownColdStartNotice;
+      if (showColdNotice) setHasShownColdStartNotice(true);
+
+      setMessages((prev) => [...prev, userMsg, pendingMsg]);
+      setInput("");
+      setIsSending(true);
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      const timeoutId = setTimeout(
+        () => controller.abort(new DOMException("timeout", "AbortError")),
+        REQUEST_TIMEOUT_MS
+      );
+
+      try {
+        const res = await fetch(`${RAG_API_URL}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: trimmed }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Server responded with ${res.status}`);
+        }
+        const data = await res.json();
+        const replyText =
+          (data && typeof data.response === "string" && data.response.trim()) ||
+          "I received an empty response. Please try rephrasing your question.";
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingId
+              ? { ...m, text: replyText, pending: false, timestamp: new Date() }
+              : m
+          )
+        );
+      } catch (err) {
+        const isTimeout = err?.name === "AbortError";
+        const errorText = isTimeout
+          ? "The assistant is taking longer than expected to respond. It may be waking up from sleep — please try again in a moment."
+          : "Sorry, I couldn't reach the assistant. Please check your connection and try again.";
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingId
+              ? {
+                  ...m,
+                  text: errorText,
+                  pending: false,
+                  error: true,
+                  timestamp: new Date(),
+                }
+              : m
+          )
+        );
+      } finally {
+        clearTimeout(timeoutId);
+        abortControllerRef.current = null;
+        setIsSending(false);
+      }
+    },
+    [isSending, isFirstMessage, hasShownColdStartNotice]
+  );
+
+  const handleSendClick = () => sendQuery(input);
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendClick();
     }
   };
 
-  // Stop voice recording
+  const handleClearChat = () => {
+    abortControllerRef.current?.abort();
+    setMessages([]);
+    setIsSending(false);
+    setHasShownColdStartNotice(false);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  };
+
+  const handleSuggestionClick = (text) => {
+    if (!isSending) sendQuery(text);
+  };
+
+  // ---- Voice input (Web Speech API: live speech-to-text) ----
+  const startVoiceInput = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert(
+        "Voice input is not supported in this browser. Please try Chrome, Edge, or Safari."
+      );
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    baselineInputRef.current = input.trim() ? `${input.trim()} ` : "";
+    finalTranscriptRef.current = "";
+
+    recognition.onstart = () => setIsRecording(true);
+
+    recognition.onresult = (event) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscriptRef.current += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+      setInput(
+        baselineInputRef.current + finalTranscriptRef.current + interim
+      );
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Speech recognition error:", event.error);
+      setIsRecording(false);
+      if (
+        event.error === "not-allowed" ||
+        event.error === "service-not-allowed"
+      ) {
+        alert(
+          "Microphone permission denied. Please allow microphone access and try again."
+        );
+      } else if (event.error === "audio-capture") {
+        alert("No microphone was found. Please check your audio device.");
+      }
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+      textareaRef.current?.focus();
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch (err) {
+      console.error("Failed to start recognition:", err);
+      setIsRecording(false);
+    }
+  };
+
   const stopVoiceInput = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      try {
+        recognition.stop();
+      } catch (err) {
+        console.error("Failed to stop recognition:", err);
+      }
     }
   };
 
-  // Send message from user
-  const sendMessage = () => {
-    if (!message.trim()) return;
-    setMessages([...messages, { from: "user", text: message }]);
-    setMessage("");
+  // ---- Text-to-speech ----
+  const speakMessage = (text) => {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1;
+    utter.pitch = 1;
+    utter.volume = 1;
+    window.speechSynthesis.speak(utter);
   };
 
-  // Text-to-speech functionality
-  const speakMessage = (text) => {
-    if ("speechSynthesis" in window) {
-      // Cancel any ongoing speech
-      window.speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1;
-      utterance.pitch = 1;
-      utterance.volume = 1;
-
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-
-      window.speechSynthesis.speak(utterance);
-    } else {
-      alert("Text-to-speech not supported in this browser");
+  const copyToClipboard = (text) => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
     }
   };
 
   return (
-    <div>
-      {/* Floating Bot Button */}
-      <div style={styles.fab} onClick={() => setIsOpen(!isOpen)}>
-        {isOpen ? (
-          <i className="bi bi-x-lg" style={{ fontSize: "24px" }}></i>
-        ) : (
-          <i className="bi bi-chat-dots" style={{ fontSize: "24px" }}></i>
-        )}
-      </div>
+    <>
+      <button
+        type="button"
+        className={`tara-fab${isOpen ? " is-open" : ""}`}
+        onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? "Close chat assistant" : "Open chat assistant"}
+        aria-expanded={isOpen}
+      >
+        <i className={`bi ${isOpen ? "bi-x-lg" : "bi-chat-dots-fill"}`} />
+      </button>
 
-      {/* Chat Window */}
       {isOpen && (
-        <div style={styles.chatWindow}>
-          <div style={styles.header}>
-            <div style={styles.headerContent}>
-              <span>Ask Me</span>
+        <section
+          className="tara-window"
+          role="dialog"
+          aria-label="Course assistant chat"
+        >
+          <header className="tara-header">
+            <div className="tara-avatar" aria-hidden="true">
+              <i className="bi bi-robot" />
+              <span className="tara-status-dot" />
+            </div>
+            <div className="tara-header-info">
+              <span className="tara-title">Tara</span>
+              <span className="tara-subtitle">AI Course Assistant • Online</span>
+            </div>
+            <div className="tara-header-actions">
               <button
-                onClick={() => setIsOpen(false)}
-                style={styles.closeBtn}
-                title="Close chat"
+                type="button"
+                className="tara-icon-btn"
+                onClick={handleClearChat}
+                disabled={messages.length === 0 && !isSending}
+                title="Clear conversation"
+                aria-label="Clear conversation"
               >
-                <i className="bi bi-x"></i>
+                <i className="bi bi-arrow-clockwise" />
+              </button>
+              <button
+                type="button"
+                className="tara-icon-btn"
+                onClick={() => setIsOpen(false)}
+                title="Close"
+                aria-label="Close chat"
+              >
+                <i className="bi bi-x-lg" />
               </button>
             </div>
-          </div>
+          </header>
 
-          <div style={styles.messages}>
-            {messages.map((m, i) => (
-              <div
-                key={i}
-                style={{
-                  ...styles.message,
-                  alignSelf: m.from === "user" ? "flex-end" : "flex-start",
-                  background: m.from === "user" ? "#007bff" : "#e9ecef",
-                  color: m.from === "user" ? "#fff" : "#000",
-                }}
-              >
-                <div>{m.text}</div>
-                {m.from === "bot" && (
-                  <button
-                    onClick={() => speakMessage(m.text)}
-                    style={styles.speakBtn}
-                    title="Read message"
-                    disabled={isSpeaking}
-                  >
-                    <i className="bi bi-volume-up"></i>
-                  </button>
-                )}
+          <div className="tara-messages" role="log" aria-live="polite">
+            {messages.length === 0 ? (
+              <div className="tara-welcome">
+                <div className="tara-welcome-emoji" aria-hidden="true">
+                  <i className="bi bi-stars" style={{ color: "#20c997" }} />
+                </div>
+                <div className="tara-welcome-title">Hi, I'm Tara</div>
+                <div className="tara-welcome-sub">
+                  Ask me anything about the platform's courses, enrollment, or
+                  how to get started.
+                </div>
+                <div className="tara-suggestions">
+                  {SUGGESTED_QUESTIONS.map((q) => (
+                    <button
+                      type="button"
+                      key={q}
+                      className="tara-suggestion"
+                      onClick={() => handleSuggestionClick(q)}
+                    >
+                      <i
+                        className="bi bi-chat-right-text"
+                        style={{ marginRight: 6 }}
+                      />
+                      {q}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))}
+            ) : (
+              <>
+                {isSending && !hasShownColdStartNotice && (
+                  <div className="tara-notice">
+                    <i className="bi bi-info-circle" />
+                    <span>
+                      First response may take 30–60s while the assistant warms
+                      up.
+                    </span>
+                  </div>
+                )}
+                {messages.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`tara-msg-row from-${m.from}${
+                      m.error ? " is-error" : ""
+                    }`}
+                  >
+                    <div className="tara-msg-avatar" aria-hidden="true">
+                      <i
+                        className={`bi ${
+                          m.from === "bot" ? "bi-robot" : "bi-person-fill"
+                        }`}
+                      />
+                    </div>
+                    <div className="tara-msg-content">
+                      <div className="tara-bubble">
+                        {m.pending ? (
+                          <span
+                            className="tara-typing"
+                            aria-label="Assistant is typing"
+                          >
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                        ) : (
+                          m.text
+                        )}
+                      </div>
+                      {!m.pending && (
+                        <div className="tara-msg-meta">
+                          <span>{formatTime(m.timestamp)}</span>
+                          {m.from === "bot" && !m.error && (
+                            <>
+                              <button
+                                type="button"
+                                className="tara-meta-btn"
+                                onClick={() => speakMessage(m.text)}
+                                title="Read aloud"
+                              >
+                                <i className="bi bi-volume-up" />
+                              </button>
+                              <button
+                                type="button"
+                                className="tara-meta-btn"
+                                onClick={() => copyToClipboard(m.text)}
+                                title="Copy"
+                              >
+                                <i className="bi bi-clipboard" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+            <div ref={messagesEndRef} />
           </div>
 
-          <div style={styles.inputArea}>
-            <input
-              style={styles.input}
-              placeholder="Type a message..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          <div className="tara-input-area">
+            <textarea
+              ref={textareaRef}
+              className="tara-textarea"
+              rows={1}
+              placeholder={
+                isSending ? "Waiting for response..." : "Ask Tara anything..."
+              }
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isSending}
+              aria-label="Message"
             />
-
-            {/* Mic Button */}
             <button
-              style={{
-                ...styles.iconBtn,
-                background: isRecording ? "#dc3545" : "#fff",
-                color: isRecording ? "#fff" : "#666",
-              }}
+              type="button"
+              className={`tara-input-btn tara-mic-btn${
+                isRecording ? " is-recording" : ""
+              }`}
               onClick={isRecording ? stopVoiceInput : startVoiceInput}
-              title={isRecording ? "Stop recording" : "Start voice input"}
+              title={isRecording ? "Stop recording" : "Voice input"}
+              aria-label={isRecording ? "Stop recording" : "Start voice input"}
+              disabled={isSending}
             >
-              <i className={`bi ${isRecording ? "bi-stop-circle" : "bi-mic"}`}></i>
+              <i
+                className={`bi ${
+                  isRecording ? "bi-stop-circle-fill" : "bi-mic-fill"
+                }`}
+              />
             </button>
-
-            {/* Send Button */}
             <button
-              style={styles.sendBtn}
-              onClick={sendMessage}
+              type="button"
+              className="tara-input-btn tara-send-btn"
+              onClick={handleSendClick}
+              disabled={isSending || !input.trim()}
               title="Send message"
+              aria-label="Send message"
             >
-              <i className="bi bi-send"></i>
+              <i
+                className={`bi ${
+                  isSending ? "bi-hourglass-split" : "bi-send-fill"
+                }`}
+              />
             </button>
           </div>
-        </div>
+          <div className="tara-footer-hint">
+            Press Enter to send • Shift+Enter for new line
+          </div>
+        </section>
       )}
-    </div>
+    </>
   );
 }
 
-const styles = {
-  fab: {
-    position: "fixed",
-    bottom: 20,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: "50%",
-    background: "linear-gradient(135deg, #28a745 0%, #20c997 100%)",
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(40, 167, 69, 0.4)",
-    zIndex: 1000,
-    border: "none",
-    transition: "transform 0.2s ease, box-shadow 0.2s ease",
-  },
-  chatWindow: {
-    position: "fixed",
-    bottom: 90,
-    right: 20,
-    width: 320,
-    height: 450,
-    background: "#fff",
-    borderRadius: 12,
-    boxShadow: "0 5px 25px rgba(0,0,0,0.15)",
-    display: "flex",
-    flexDirection: "column",
-    zIndex: 1000,
-    border: "1px solid #e0e0e0",
-  },
-  header: {
-    padding: "12px 16px",
-    background: "linear-gradient(135deg, #28a745 0%, #20c997 100%)",
-    color: "#fff",
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    fontWeight: "600",
-    fontSize: "16px",
-  },
-  headerContent: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  closeBtn: {
-    background: "rgba(255,255,255,0.2)",
-    border: "none",
-    color: "#fff",
-    width: "32px",
-    height: "32px",
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    fontSize: "18px",
-    transition: "background 0.2s ease",
-  },
-  messages: {
-    flex: 1,
-    padding: "12px",
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    backgroundColor: "#f8f9fa",
-  },
-  message: {
-    maxWidth: "100%",
-    width:"fit-content",
-    padding:"6px 10px",
-    borderRadius:6,
-    fontSize:14,
-    display:"inline-block",
-    wordBreak:"break-word"
-  },
-  speakBtn: {
-    background: "none",
-    border: "none",
-    color: "inherit",
-    cursor: "pointer",
-    fontSize: "12px",
-    padding: "2px 4px",
-    opacity: 0.7,
-    transition: "opacity 0.2s ease",
-  },
-  inputArea: {
-    display: "flex",
-    gap: "6px",
-    padding: "10px",
-    borderTop: "1px solid #e0e0e0",
-    backgroundColor: "#fff",
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    alignItems: "center",
-  },
-  input: {
-    flex: 1,
-    border: "1px solid #ddd",
-    padding: "8px 12px",
-    outline: "none",
-    borderRadius: "20px",
-    fontSize: "14px",
-    fontFamily: "inherit",
-    transition: "border-color 0.2s ease",
-  },
-  iconBtn: {
-    background: "#fff",
-    border: "1px solid #ddd",
-    width: "36px",
-    height: "36px",
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    fontSize: "18px",
-    transition: "all 0.2s ease",
-    color: "#666",
-  },
-  sendBtn: {
-    background: "#28a745",
-    border: "none",
-    width: "36px",
-    height: "36px",
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    fontSize: "18px",
-    color: "#fff",
-    transition: "background 0.2s ease",
-  },
-};
 export default ChatBot;
