@@ -27,8 +27,9 @@ export function ChatBot() {
   const [hasShownColdStartNotice, setHasShownColdStartNotice] = useState(false);
 
   const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const recognitionRef = useRef(null);
+  const baselineInputRef = useRef("");
+  const finalTranscriptRef = useRef("");
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -188,37 +189,80 @@ export function ChatBot() {
     if (!isSending) sendQuery(text);
   };
 
-  // ---- Voice input (existing capability preserved) ----
-  const startVoiceInput = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
-      audioChunksRef.current = [];
+  // ---- Voice input (Web Speech API: live speech-to-text) ----
+  const startVoiceInput = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert(
+        "Voice input is not supported in this browser. Please try Chrome, Edge, or Safari."
+      );
+      return;
+    }
 
-      recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
-      recorder.onstart = () => setIsRecording(true);
-      recorder.onstop = () => {
-        setIsRecording(false);
-        audioChunksRef.current = [];
-        setInput((prev) =>
-          prev ? `${prev} [voice note] ` : "[voice note] "
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    baselineInputRef.current = input.trim() ? `${input.trim()} ` : "";
+    finalTranscriptRef.current = "";
+
+    recognition.onstart = () => setIsRecording(true);
+
+    recognition.onresult = (event) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscriptRef.current += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+      setInput(
+        baselineInputRef.current + finalTranscriptRef.current + interim
+      );
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Speech recognition error:", event.error);
+      setIsRecording(false);
+      if (
+        event.error === "not-allowed" ||
+        event.error === "service-not-allowed"
+      ) {
+        alert(
+          "Microphone permission denied. Please allow microphone access and try again."
         );
-        textareaRef.current?.focus();
-      };
+      } else if (event.error === "audio-capture") {
+        alert("No microphone was found. Please check your audio device.");
+      }
+    };
 
-      recorder.start();
+    recognition.onend = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+      textareaRef.current?.focus();
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
     } catch (err) {
-      console.error("Microphone error:", err);
-      alert("Unable to access microphone. Please check permissions.");
+      console.error("Failed to start recognition:", err);
+      setIsRecording(false);
     }
   };
 
   const stopVoiceInput = () => {
-    const recorder = mediaRecorderRef.current;
-    if (recorder && isRecording) {
-      recorder.stop();
-      recorder.stream.getTracks().forEach((t) => t.stop());
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      try {
+        recognition.stop();
+      } catch (err) {
+        console.error("Failed to stop recognition:", err);
+      }
     }
   };
 
