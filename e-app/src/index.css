@@ -1,16 +1,59 @@
+/* Global theme tokens for the entire app */
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+  color: var(--text);
+  background-color: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --bg: #f8fbff;
+  --surface: #ffffff;
+  --surface-alt: #f3f6ff;
+  --card-bg: #ffffff;
+  --navbar-bg: rgba(255, 255, 255, 0.92);
+  --navbar-text: #0f172a;
+  --text: #0f172a;
+  --text-muted: #475569;
+  --text-soft: rgba(15, 23, 42, 0.72);
+  --text-inverse: #f8fbff;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --surface-strong: rgba(15, 23, 42, 0.04);
+  --card-shadow: 0 30px 80px rgba(15, 23, 42, 0.08);
+  --button-bg: #1a1a1a;
+  --button-text: #ffffff;
+  --primary: #4f46e5;
+  --primary-soft: #e0e7ff;
+  --accent: #22c55e;
+  --accent-soft: #d1fae5;
+}
+
+.theme-dark {
+  --bg: #071127;
+  --surface: rgba(6, 12, 29, 0.94);
+  --surface-alt: rgba(10, 20, 40, 0.88);
+  --card-bg: rgba(12, 18, 38, 0.92);
+  --navbar-bg: rgba(6, 12, 29, 0.92);
+  --navbar-text: #f8fbff;
+  --text: #edf2ff;
+  --text-muted: rgba(226, 232, 255, 0.72);
+  --text-soft: rgba(226, 232, 255, 0.72);
+  --text-inverse: #0f172a;
+  --border: rgba(148, 163, 184, 0.16);
+  --border-strong: rgba(148, 163, 184, 0.24);
+  --surface-strong: rgba(255, 255, 255, 0.03);
+  --card-shadow: 0 30px 80px rgba(0, 0, 0, 0.42);
+  --button-bg: #1f2937;
+  --button-text: #f8fbff;
+  --primary: #8b5cf6;
+  --primary-soft: rgba(147, 51, 234, 0.12);
+  --accent: #2dd4bf;
+  --accent-soft: rgba(45, 212, 191, 0.16);
 }
 
 a {
@@ -27,6 +70,8 @@ body {
   display: block;
   min-width: 320px;
   min-height: 100vh;
+  color: var(--text);
+  background-color: var(--bg);
 }
 
 h1 {
@@ -41,7 +86,8 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: var(--button-bg);
+  color: var(--button-text);
   cursor: pointer;
   transition: border-color 0.25s;
 }
@@ -51,6 +97,97 @@ button:hover {
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
+}
+
+.theme-dark a,
+.theme-dark .nav-link,
+.theme-dark .navbar-brand,
+.theme-dark .navbar-toggler {
+  color: var(--navbar-text) !important;
+}
+
+ .theme-dark .bg-white,
+ .theme-dark .bg-light,
+ .theme-dark .card,
+ .theme-dark .modal-content,
+ .theme-dark .dropdown-menu,
+ .theme-dark .list-group-item,
+ .theme-dark .table,
+ .theme-dark .form-control,
+ .theme-dark .form-select,
+ .theme-dark .form-select-sm,
+ .theme-dark .input-group-text,
+ .theme-dark .auth-card,
+ .theme-dark .auth-page,
+ .theme-dark .card-header,
+ .theme-dark .dashboard-shell,
+ .theme-dark .btn-outline-light {
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+.theme-dark .text-dark {
+  color: var(--text) !important;
+}
+
+.theme-dark .text-secondary {
+  color: var(--text-muted) !important;
+}
+
+.theme-dark .text-muted,
+.theme-dark .small,
+.theme-dark .form-text,
+.theme-dark .dropdown-item,
+.theme-dark .nav-link {
+  color: var(--text-muted) !important;
+}
+
+.theme-dark .form-control::placeholder,
+.theme-dark .form-select::placeholder,
+.theme-dark textarea::placeholder {
+  color: rgba(226, 232, 255, 0.72) !important;
+  opacity: 1;
+}
+
+.theme-dark .badge.bg-info-subtle {
+  background-color: rgba(56, 189, 248, 0.18) !important;
+  color: #cffafe !important;
+}
+
+.theme-dark .text-info-emphasis {
+  color: #bae6fd !important;
+}
+
+.theme-dark .btn-outline-light {
+  background-color: transparent !important;
+  color: var(--text) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+.theme-dark .btn-outline-dark {
+  background-color: transparent !important;
+  color: var(--text) !important;
+  border-color: rgba(226, 232, 255, 0.2) !important;
+}
+
+.theme-dark .auth-page {
+  background: linear-gradient(180deg, #071127 0%, #0b1431 100%) !important;
+}
+
+.theme-dark .auth-card {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28) !important;
+}
+
+.theme-dark .auth-card h3,
+.theme-dark .auth-card p,
+.theme-dark .auth-card .btn-link,
+.theme-dark .auth-card .btn-link.auth-action-muted,
+.theme-dark .auth-card .form-control,
+.theme-dark .auth-card-badge {
+  color: var(--text) !important;
 }
 
 @media (prefers-color-scheme: light) {
@@ -784,6 +921,67 @@ button:focus-visible {
   .dashboard-shell .flex-grow-1.p-4 {
     padding: 2rem 1.25rem;
   }
+}
+
+.theme-dark .dashboard-shell {
+  background: linear-gradient(180deg, #071127 0%, #0b1431 55%, #0f172a 100%) !important;
+}
+
+.theme-dark .dashboard-shell .dashboard-sidebar {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.16) !important;
+}
+
+.theme-dark .dashboard-shell .dashboard-sidebar h5,
+.theme-dark .dashboard-shell .nav-link.btn-link,
+.theme-dark .dashboard-shell .nav-link.btn-link.text-primary,
+.theme-dark .dashboard-shell .lead,
+.theme-dark .dashboard-shell .card .card-title,
+.theme-dark .dashboard-shell .card-text.display-4,
+.theme-dark .dashboard-shell .badge,
+.theme-dark .dashboard-shell .card .display-4 {
+  color: var(--text) !important;
+}
+
+.theme-dark .dashboard-shell .nav-link.btn-link:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--text) !important;
+}
+
+.theme-dark .dashboard-shell .btn-outline-primary {
+  border-color: rgba(147, 51, 234, 0.35) !important;
+  color: var(--text) !important;
+}
+
+.theme-dark .dashboard-shell .card {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18) !important;
+}
+
+.theme-dark .dashboard-shell .card.text-center.shadow,
+.theme-dark .dashboard-shell .bg-white,
+.theme-dark .dashboard-shell .bg-light,
+.theme-dark .dashboard-shell .rounded.shadow,
+.theme-dark .dashboard-shell .table tbody tr,
+.theme-dark .dashboard-shell .table thead th {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+.theme-dark .dashboard-shell .table thead th {
+  background: var(--surface-alt) !important;
+}
+
+.theme-dark .dashboard-shell .table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.theme-dark .dashboard-shell .badge.bg-danger {
+  background: #f87171 !important;
+  color: #ffffff !important;
 }
 
 /* Cursor pointer utility */

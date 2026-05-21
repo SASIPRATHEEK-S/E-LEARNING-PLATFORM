@@ -420,7 +420,14 @@ export default function StudentDashboard() {
               </div>
               <div className="row">
                 <div className="col-md-3 mb-3">
-                  <div className="card text-center shadow">
+                  <div
+                    className="card text-center shadow"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => setActiveTab("Enrolled Courses")}
+                    onKeyDown={(event) => event.key === "Enter" && setActiveTab("Enrolled Courses")}
+                    role="button"
+                    tabIndex={0}
+                  >
                     <div className="card-body">
                       <i className="bi bi-book display-4 text-primary"></i>
                       <h5 className="card-title">Enrolled Courses</h5>
@@ -431,7 +438,14 @@ export default function StudentDashboard() {
                   </div>
                 </div>
                 <div className="col-md-3 mb-3">
-                  <div className="card text-center shadow">
+                  <div
+                    className="card text-center shadow"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => setActiveTab("Completed Courses")}
+                    onKeyDown={(event) => event.key === "Enter" && setActiveTab("Completed Courses")}
+                    role="button"
+                    tabIndex={0}
+                  >
                     <div className="card-body">
                       <i className="bi bi-trophy display-4 text-success"></i>
                       <h5 className="card-title">Completed Courses</h5>
@@ -442,7 +456,14 @@ export default function StudentDashboard() {
                   </div>
                 </div>
                 <div className="col-md-3 mb-3">
-                  <div className="card text-center shadow">
+                  <div
+                    className="card text-center shadow"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => setActiveTab("browse")}
+                    onKeyDown={(event) => event.key === "Enter" && setActiveTab("browse")}
+                    role="button"
+                    tabIndex={0}
+                  >
                     <div className="card-body">
                       <i className="bi bi-book display-4 text-info"></i>
                       <h5 className="card-title">Available Courses</h5>
@@ -451,7 +472,14 @@ export default function StudentDashboard() {
                   </div>
                 </div>
                 <div className="col-md-3 mb-3">
-                  <div className="card text-center shadow">
+                  <div
+                    className="card text-center shadow"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => setActiveTab("quizzes")}
+                    onKeyDown={(event) => event.key === "Enter" && setActiveTab("quizzes")}
+                    role="button"
+                    tabIndex={0}
+                  >
                     <div className="card-body">
                       <i className="bi bi-question-circle display-4 text-warning"></i>
                       <h5 className="card-title">Available Quizzes</h5>
@@ -541,7 +569,6 @@ export default function StudentDashboard() {
               ) : (
                 <p className="text-muted">
                   No recent activity yet. Start completing courses and quizzes
-                  to see activity here.
                 </p>
               )}
             </div>

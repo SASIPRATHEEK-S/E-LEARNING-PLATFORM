@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import "../styles/Profile.css";
@@ -25,8 +26,7 @@ export default function Profile() {
     profilePicturePreview: "/default-profile.png",
   });
 
-  // Dark mode state
-  const [darkMode, setDarkMode] = useState(false);
+  const { theme } = useTheme();
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -46,8 +46,6 @@ export default function Profile() {
     console.log("User data:", user);
     console.log("User profile:", user.profile);
 
-    const darkModePreference = localStorage.getItem("darkModePreference") === "true";
-    setDarkMode(darkModePreference);
 
     const initData = {
       fullName: user.name || "",
@@ -73,15 +71,6 @@ export default function Profile() {
     }));
   }, [user]);
 
-  // Apply dark mode
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark-mode");
-    } else {
-      document.documentElement.classList.remove("dark-mode");
-    }
-    localStorage.setItem("darkModePreference", darkMode);
-  }, [darkMode]);
 
   // Validation function
   const validateForm = () => {
@@ -177,7 +166,6 @@ export default function Profile() {
           interests: profileData.interests,
           avatar: profileData.profilePicturePreview, // Save the base64 image
         },
-        darkModePreference: darkMode,
       };
 
       console.log('SENDING PAYLOAD:', updatePayload);
@@ -215,7 +203,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="profile-container">
+    <div className={`profile-container ${theme === "dark" ? "dark-mode" : ""}`}>
       {/* Header Section */}
       <div className="profile-header">
         <div>
@@ -413,18 +401,10 @@ export default function Profile() {
 
             <div className="toggle-option">
               <div className="toggle-info">
-                <label htmlFor="darkMode">Dark Mode</label>
-                <p className="toggle-description">Enable dark theme for the application</p>
+                <label>Current theme</label>
+                <p className="toggle-description">The application theme is managed globally.</p>
               </div>
-              <label className="toggle-switch">
-                <input
-                  id="darkMode"
-                  type="checkbox"
-                  checked={darkMode}
-                  onChange={(e) => setDarkMode(e.target.checked)}
-                />
-                <span className="slider"></span>
-              </label>
+              <div className="theme-status">{theme === "dark" ? "Dark" : "Light"}</div>
             </div>
           </div>
         </div>

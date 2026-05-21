@@ -1,10 +1,12 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 
 // Navigation bar - shows different links based on login status and user role
 export default function Navbar(){
   // Get authentication state from context
   const { isAuthenticated, user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
 
   const getProfilePath = () => {
@@ -41,12 +43,22 @@ export default function Navbar(){
 
         <div className="collapse navbar-collapse" id="navbarNav">
           <ul className="navbar-nav ms-auto">
+            <li className="nav-item d-flex align-items-center">
+              <button
+                type="button"
+                className={`btn btn-sm rounded-pill mx-1 ${theme === "dark" ? "btn-outline-light" : "btn-outline-dark"}`}
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              >
+                {theme === "dark" ? "☀️" : "🌙"}
+              </button>
+            </li>
             {!isAuthenticated && (
               <>
                 <li className="nav-item">
                   <NavLink
                     className={({ isActive }) =>
-                      `nav-link btn btn-outline-light btn-sm rounded-pill mx-1 ${
+                      `nav-link btn btn-outline-${theme === "dark" ? "light" : "dark"} btn-sm rounded-pill mx-1 ${
                         isActive ? "active" : ""
                       }`
                     }
@@ -58,7 +70,7 @@ export default function Navbar(){
                 <li className="nav-item">
                   <NavLink
                     className={({ isActive }) =>
-                      `nav-link btn btn-outline-light btn-sm rounded-pill mx-1 ${
+                      `nav-link btn btn-outline-${theme === "dark" ? "light" : "dark"} btn-sm rounded-pill mx-1 ${
                         isActive ? "active" : ""
                       }`
                     }
