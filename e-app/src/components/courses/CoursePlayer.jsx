@@ -9,6 +9,9 @@ export default function CoursePlayer({
   isEnrolled,
   onTopicComplete,
   onUpdateLastActive,
+  previewMode = false,
+  onEditTopic,
+  onDeleteTopic,
 }) {
   const toast = useToast();
   const [currentVideo, setCurrentVideo] = useState(course.content?.[0] || null);
@@ -108,14 +111,16 @@ export default function CoursePlayer({
               <i className="bi bi-play-circle text-primary me-2"></i>
               {currentVideo?.topic || "Select a topic to start"}
             </h5>
-            <button
-              className="btn btn-sm btn-success"
-              onClick={handleMarkComplete}
-              disabled={!currentVideo}
-              title="Mark this topic as complete"
-            >
-              <i className="bi bi-check2-all me-1"></i>Mark Complete
-            </button>
+            {!previewMode && (
+              <button
+                className="btn btn-sm btn-success"
+                onClick={handleMarkComplete}
+                disabled={!currentVideo}
+                title="Mark this topic as complete"
+              >
+                <i className="bi bi-check2-all me-1"></i>Mark Complete
+              </button>
+            )}
           </div>
 
           <div className="ratio ratio-16x9 shadow-sm rounded overflow-hidden bg-black">
@@ -223,9 +228,10 @@ export default function CoursePlayer({
             </div>
             <div className="list-group list-group-flush overflow-auto" style={{ maxHeight: "450px" }}>
               {course.content?.map((item, index) => (
-                <button
+                <div
                   key={index}
-                  className={`list-group-item list-group-item-action py-3 border-start border-4 d-flex justify-content-between align-items-center ${currentVideo?.topic === item.topic ? "border-primary bg-light fw-bold" : "border-transparent"}`}
+                  className={`list-group-item py-3 border-start border-4 d-flex justify-content-between align-items-center ${currentVideo?.topic === item.topic ? "border-primary bg-light fw-bold" : "border-transparent"}`}
+                  role="button"
                   onClick={() => handleTopicClick(item)}
                 >
                   <div className="d-flex align-items-center">
@@ -234,14 +240,33 @@ export default function CoursePlayer({
                     ></i>
                     <span>{item.topic}</span>
                   </div>
-                  {completedTopics.has(item.topic) ? (
+                  {previewMode ? (
+                    <div className="d-flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        title="Edit this topic"
+                        onClick={() => onEditTopic && onEditTopic(index, item)}
+                      >
+                        <i className="bi bi-pencil"></i>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger"
+                        title="Delete this topic"
+                        onClick={() => onDeleteTopic && onDeleteTopic(index, item)}
+                      >
+                        <i className="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  ) : completedTopics.has(item.topic) ? (
                     <i className="bi bi-check2-all text-success fs-5"></i>
                   ) : isEnrolled ? (
                     <i className="bi bi-clock text-secondary"></i>
                   ) : (
                     <i className="bi bi-lock-fill text-muted"></i>
                   )}
-                </button>
+                </div>
               ))}
             </div>
           </div>

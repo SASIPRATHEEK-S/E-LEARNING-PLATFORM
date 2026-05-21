@@ -8,6 +8,7 @@ import InstructorProfile from "../InstructorProfile";
 import CourseForm from "../../components/courses/CourseForm";
 import CourseCard from "../../components/courses/CourseCard";
 import CoursePlayer from "../../components/courses/CoursePlayer";
+import CoursePreview from "../../components/courses/CoursePreview";
 import QuizManagement from "../../components/quizzes/QuizManagement";
 import ErrorBoundary from "../../components/ErrorBoundary";
 import InstructorAnalytics from "../../components/InstructorAnalytics";
@@ -36,6 +37,10 @@ export default function InstructorDashboard() {
   const [quizzes, setQuizzes] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [previewData, setPreviewData] = useState(null);
+  const [previewMode, setPreviewMode] = useState(null); // 'create' | 'edit'
+  const [previewActiveTopic, setPreviewActiveTopic] = useState(0);
   const [quizAttempts, setQuizAttempts] = useState([]);
   const [courseProgress, setCourseProgress] = useState({});
   const [courseRatings, setCourseRatings] = useState({});
@@ -121,6 +126,35 @@ export default function InstructorDashboard() {
     } catch (error) {
       console.error("Error publishing course", error);
       toast.error("Error publishing course");
+    }
+  };
+
+  const updateCourse = async (courseId, courseData) => {
+    try {
+      const response = await fetch(`${API_BASE}/courses/${courseId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(courseData),
+      });
+      if (response.ok) {
+        const updatedCourse = await response.json();
+        setCourses(
+          courses.map((course) =>
+            course._id === updatedCourse._id || course.id === updatedCourse.id
+              ? updatedCourse
+              : course,
+          ),
+        );
+        setEditingCourse(null);
+        setActiveTab("courses");
+        toast.success("Course updated successfully");
+      } else {
+        toast.error("Failed to update course");
+      }
+    } catch (error) {
+      console.error("Error updating course", error);
+      toast.error("Error updating course");
     }
   };
 
@@ -508,6 +542,10 @@ export default function InstructorDashboard() {
                               setActiveTab("view-course");
                             }}
                             onDelete={deleteCourse}
+                            onEdit={(course) => {
+                              setEditingCourse(course);
+                              setActiveTab("edit-course");
+                            }}
                           />
                         </div>
                       </div>
@@ -540,12 +578,110 @@ export default function InstructorDashboard() {
               <div className="card shadow border-0">
                 <div className="card-body p-4">
                   <CourseForm
-                    onSubmit={addCourse}
-                    onCancel={() => setActiveTab("dashboard")}
+                    initialData={previewMode === "create" ? previewData : null}
+                    initialActiveTopicIndex={previewActiveTopic}
+                    onSubmit={(courseData) => {
+                      setPreviewData(courseData);
+                      setPreviewMode("create");
+                      setPreviewActiveTopic(0);
+                      setActiveTab("preview-course");
+                    }}
+                    onCancel={() => {
+                      setPreviewData(null);
+                      setPreviewMode(null);
+                      setPreviewActiveTopic(0);
+                      setActiveTab("dashboard");
+                    }}
                   />
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === "edit-course" && editingCourse && (
+            <div>
+              <h2 className="mb-4 fw-bold">Edit Course</h2>
+              <div className="card shadow border-0">
+                <div className="card-body p-4">
+                  <CourseForm
+                    initialData={
+                      previewMode === "edit" && previewData
+                        ? previewData
+                        : editingCourse
+                    }
+                    initialActiveTopicIndex={previewActiveTopic}
+                    onSubmit={(courseData) => {
+                      setPreviewData(courseData);
+                      setPreviewMode("edit");
+                      setPreviewActiveTopic(0);
+                      setActiveTab("preview-course");
+                    }}
+                    onCancel={() => {
+                      setEditingCourse(null);
+                      setPreviewData(null);
+                      setPreviewMode(null);
+                      setPreviewActiveTopic(0);
+                      setActiveTab("courses");
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "preview-course" && previewData && (
+            <CoursePreview
+              course={previewData}
+              isUpdate={previewMode === "edit"}
+              onEdit={() => {
+                setActiveTab(
+                  previewMode === "edit" ? "edit-course" : "create-course",
+                );
+              }}
+              onEditTopic={(index) => {
+                setPreviewActiveTopic(index);
+                setActiveTab(
+                  previewMode === "edit" ? "edit-course" : "create-course",
+                );
+              }}
+              onDeleteTopic={(index, item) => {
+                const topicLabel = item?.topic || `Topic ${index + 1}`;
+                if (
+                  !window.confirm(
+                    `Remove "${topicLabel}" from the course?`,
+                  )
+                ) {
+                  return;
+                }
+                setPreviewData((prev) => {
+                  if (!prev) return prev;
+                  const nextContent = (prev.content || []).filter(
+                    (_, i) => i !== index,
+                  );
+                  return { ...prev, content: nextContent };
+                });
+              }}
+              onPublish={async () => {
+                if (previewMode === "edit" && editingCourse) {
+                  await updateCourse(
+                    editingCourse._id || editingCourse.id,
+                    previewData,
+                  );
+                } else {
+                  await addCourse(previewData);
+                }
+                setPreviewData(null);
+                setPreviewMode(null);
+                setPreviewActiveTopic(0);
+              }}
+              onCancel={() => {
+                setPreviewData(null);
+                setPreviewMode(null);
+                setPreviewActiveTopic(0);
+                setEditingCourse(null);
+                setActiveTab("courses");
+              }}
+            />
           )}
 
           {activeTab === "students" && (

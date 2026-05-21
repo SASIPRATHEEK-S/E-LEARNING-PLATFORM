@@ -5,6 +5,7 @@ import { useToast } from "../../context/ToastContext";
 import Navbar from "../../components/layout/Navbar";
 import Profile from "../Profile";
 import CourseList from "../../components/courses/CourseList";
+import CourseCard from "../../components/courses/CourseCard";
 import CoursePlayer from "../../components/courses/CoursePlayer";
 import QuizTaker from "../../components/quizzes/QuizTaker";
 import StudentOwnPerformanceDashboard from "../../components/StudentOwnPerformanceDashboard";
@@ -577,42 +578,22 @@ export default function StudentDashboard() {
           {activeTab === "Enrolled Courses" && (
             <div>
               <h2 className="mb-4 fw-bold text-dark">My Enrolled Courses</h2>
-              <div className="row">
+              <div className="row g-4">
                 {enrolledCourses.map((course) => {
-                  const progress = courseProgress[course.id]?.progress || 0;
+                  const progress = courseProgress[course._id]?.progress || 0;
                   return (
-                    <div key={course.id} className="col-md-6 mb-4">
-                      <div className="card shadow h-100">
-                        <div className="card-body">
-                          <h5 className="card-title">{course.title}</h5>
-                          <p className="card-text">{course.description}</p>
-                          <p className="text-muted">
-                            Instructor: {course.instructorName}
-                          </p>
-                          <div className="progress mb-2">
-                            <div
-                              className="progress-bar bg-success"
-                              style={{ width: `${progress}%` }}
-                            ></div>
-                          </div>
-                          <small>{progress}% Complete</small>
-                          <button
-                            className="btn btn-primary mt-2 me-2"
-                            onClick={() => {
-                              setSelectedCourse(course);
-                              setActiveTab("view-course");
-                            }}
-                          >
-                            Continue Learning
-                          </button>
-                          <button
-                            className="btn btn-outline-primary mt-2"
-                            onClick={() => setActiveTab("quizzes")}
-                          >
-                            View Quizzes
-                          </button>
-                        </div>
-                      </div>
+                    <div key={course._id} className="col-md-6 col-lg-4">
+                      <CourseCard
+                        course={course}
+                        onView={() => {
+                          setSelectedCourse(course);
+                          setActiveTab("view-course");
+                        }}
+                        onViewQuizzes={() => setActiveTab("quizzes")}
+                        isEnrolled={true}
+                        userRole="student"
+                        progress={progress}
+                      />
                     </div>
                   );
                 })}
@@ -734,16 +715,20 @@ export default function StudentDashboard() {
                   </button>
                 </div>
               )}
-              <div className="row">
+              <div className="row g-4">
                 {completedCourses.map((course) => (
-                  <div key={course.id} className="col-md-6 mb-4">
-                    <div className="card shadow h-100">
-                      <div className="card-body">
-                        <h5 className="card-title">{course.title}</h5>
-                        <p className="card-text">{course.description}</p>
-                        <p className="text-success">Completed</p>
-                      </div>
-                    </div>
+                  <div key={course._id} className="col-md-6 col-lg-4">
+                    <CourseCard
+                      course={course}
+                      onView={() => {
+                        setSelectedCourse(course);
+                        setActiveTab("view-course");
+                      }}
+                      onViewQuizzes={() => setActiveTab("quizzes")}
+                      isEnrolled={true}
+                      userRole="student"
+                      progress={100}
+                    />
                   </div>
                 ))}
                 {completedCourses.length === 0 && (

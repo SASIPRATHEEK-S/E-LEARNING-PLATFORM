@@ -7,10 +7,12 @@ export default function CourseCard({
   course,
   onView,
   onDelete,
+  onEdit,
   onEnroll,
   isEnrolled = false,
   userRole = "student",
   progress = null,
+  onViewQuizzes,
 }) {
   return (
     <div className="card h-100 shadow-sm border-0">
@@ -39,25 +41,39 @@ export default function CourseCard({
         </p>
 
         <div className="d-flex flex-column gap-2 mt-3">
-          <div className="d-flex justify-content-between align-items-center">
-            <span className="badge bg-info-subtle text-info-emphasis px-2 py-1">
+          <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span className="badge bg-info-subtle text-info-emphasis px-2 py-1 text-nowrap">
               <i className="bi bi-clock me-1"></i>
               {course.duration || "N/A"}
             </span>
-            <button
-              className="btn btn-primary btn-sm px-3"
-              onClick={() => onView(course)}
-            >
-              View Course
-            </button>
-            {onDelete && (
+            <div className="d-flex gap-2 align-items-stretch">
+              {onEdit && (
+                <button
+                  className="btn btn-secondary btn-sm d-inline-flex align-items-center justify-content-center"
+                  style={{ minWidth: "38px" }}
+                  title="Edit course"
+                  onClick={() => onEdit(course)}
+                >
+                  <i className="bi bi-pencil"></i>
+                </button>
+              )}
               <button
-                className="btn btn-outline-danger btn-sm ms-2"
-                onClick={() => onDelete(course.id)}
+                className="btn btn-primary btn-sm px-3 text-nowrap"
+                onClick={() => onView(course)}
               >
-                <i className="bi bi-trash"></i>
+                View Course
               </button>
-            )}
+              {onDelete && (
+                <button
+                  className="btn btn-danger btn-sm d-inline-flex align-items-center justify-content-center"
+                  style={{ minWidth: "38px" }}
+                  title="Delete course"
+                  onClick={() => onDelete(course.id)}
+                >
+                  <i className="bi bi-trash"></i>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Student: Not enrolled */}
@@ -80,10 +96,10 @@ export default function CourseCard({
 
           {/* Student: Enrolled */}
           {userRole === "student" && isEnrolled && (
-            <div className="d-flex align-items-center gap-3 mt-2 flex-wrap">
+            <div className="d-flex flex-column gap-2 mt-3">
               {progress !== null && (
                 <span
-                  className="fw-bold px-3 py-1 rounded"
+                  className="fw-bold px-3 py-2 rounded text-center"
                   style={{
                     backgroundColor:
                       progress >= 80
@@ -97,18 +113,22 @@ export default function CourseCard({
                         : progress >= 50
                           ? "#856404"
                           : "#842029",
-                    fontSize: "1.1rem",
-                    minWidth: "70px",
-                    textAlign: "center",
+                    fontSize: "1rem",
                   }}
                 >
                   {progress}% Complete
                 </span>
               )}
-              <button className="btn btn-primary btn-sm px-3">
+              <button 
+                className="btn btn-primary w-100"
+                onClick={() => onView(course)}
+              >
                 Continue Learning
               </button>
-              <button className="btn btn-outline-primary btn-sm px-3">
+              <button 
+                className="btn btn-outline-primary w-100"
+                onClick={() => onViewQuizzes && onViewQuizzes(course)}
+              >
                 View Quizzes
               </button>
             </div>
